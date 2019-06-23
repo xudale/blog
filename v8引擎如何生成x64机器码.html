@@ -106,7 +106,18 @@
 		<h3>V8 是如何生成浮点数加法的机器码的</h3>
 		<div>通过查看上一段 C 代码生成的 X64 汇编和 Intel 软件手册可知，X64 平台浮点数加法指令为 addsd 或 vaddsd。</div>
 		<img src="./assets/xcode-addsd.png" alt="addsd">
+		<div>因为 JS 代码最开始是解释执行的，为了让 V8 能够生成机器码，需要把一段 JS 反复执行，变成热点代码。</div>
+		<img src="./assets/terminal.png" alt="terminal">
+		<div>需要执行的 JS 代码是double.js，./out/x64.debug/d8 是 V8 编译后的产物 d8，d 是 debug 的缩写，--print-opt-code 打印汇编。</div>
+		<img src="./assets/d8.png" alt="d8">
+		<div>从输出可以看到浮点数加法的指令：addsd xmm1,xmm0，及其对应的机器码 f20f58c8。下面通过源码来看机器码如何生成（<a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/assembler-x64.cc#3770" target="_blank">源码链接</a>）。</div>
+		<img src="./assets/assembler-addsd.png" alt="">
+		<div>对比 Intel 软件手册，可以发现 f20f58 对应 addsd 指令的机器码，具体来说是操作码。而emit函数定义如下（<a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/assembler-x64.h#1795" target="_blank">源码链接</a>）：</div>
+		<pre>void emit(byte x) { *pc_++ = x; }</pre>
+		<div>pc_是一个字节指针， *pc_++ 相当于先执行 pc++，然后执行 *pc_;emit 函数的作用是将传入的机器码x，写入内存。到此，addsd xmm1,xmm0 对应的 4 字节 f20f58c8 机器码，我们已经分析了前3个字节 f20f58；因为 emit_optional_rex_32 函数没有生成机器码，故本文忽略。下面开始分析机器码 c8 是如何生成的。emit_sse_operand 函数定义如下：</div>
+		<img src="./assets/emit-sse-operand.png" alt="">
 		<img src="./assets/intel-addsd.png" alt="addsd">
+		
 	</div>
 </body>
 </html>

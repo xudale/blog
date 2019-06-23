@@ -156,6 +156,7 @@ a {
 a:hover {
     color: red;
     text-decoration: underline;
+    cursor: pointer;
 }
 ul {
     line-height: 1.5;
