@@ -24,6 +24,7 @@ footer, header, hgroup, menu, nav, section {
 }
 body {
     line-height: 1;
+    background-color: #f5f5d5;
 }
 ol, ul {
     list-style: none;
@@ -113,3 +114,90 @@ a:focus,a:hover{
 input,a{
     box-sizing: border-box;
 }
+.content {
+    width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    color: #555;
+    padding-top: 60px;
+}
+.content div {
+    font-size: 16px;
+    line-height: 1.5;
+    text-align: justify;
+    text-indent: 2em;
+}
+.content .date {
+
+}
+/* first-class title */
+h2 {
+    font-weight: 400;
+    font-size: 22px;
+    text-align: center;
+    line-height: 2;
+}
+/* second-class title */
+h3 {
+    font-size: 20px;
+    line-height: 2;
+}
+/* third-class title */
+h4 {
+    font-size: 18px;
+    line-height: 1.5;
+}
+
+a {
+    color: blue;
+    text-decoration: underline;
+}
+
+a:hover {
+    color: red;
+    text-decoration: underline;
+}
+ul {
+    line-height: 1.5;
+    padding-left: 3.5em; 
+    font-size: 16px;
+}
+ul li {
+    list-style-type: circle;
+}
+pre {
+    background-color: #f5f2f0;
+    padding: 1em;
+    margin: 1em 1em;
+    border-width: 0.3em;
+    text-shadow: 0 1px white;
+    border-radius: 6px;
+    border: 2px solid #f5f2f0;
+}
+.pr {
+    position: relative;
+}
+.super {
+    vertical-align: super;
+    transform: scale(0.5,0.5);
+    top: -9px;
+    left: -18px;
+    position: absolute;
+}
+img {
+    vertical-align: top;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
