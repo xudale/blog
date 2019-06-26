@@ -115,9 +115,14 @@
 		<div>对比 Intel 软件手册，可以发现 f20f58 对应 addsd 指令的机器码，具体来说是操作码。而emit函数定义如下（<a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/assembler-x64.h#1795" target="_blank">源码链接</a>）：</div>
 		<pre>void emit(byte x) { *pc_++ = x; }</pre>
 		<div>pc_是一个字节指针， *pc_++ 相当于先执行 pc++，然后执行 *pc_;emit 函数的作用是将传入的机器码x，写入内存。到此，addsd xmm1,xmm0 对应的 4 字节 f20f58c8 机器码，我们已经分析了前3个字节 f20f58；因为 emit_optional_rex_32 函数没有生成机器码，故本文忽略。下面开始分析机器码 c8 是如何生成的。emit_sse_operand 函数定义如下：</div>
-		<img src="./assets/emit-sse-operand.png" alt="">
+		<div>从Intel X64机器码的角度分析，可以简述如下，因addsd xmm1,xmm0的两个操作数都为寄存器，故 bit7 和 bit6 都为1，xmm1 的序号为 001，故 bit5 - bit3 为 001，xmm0 的序号为 000，故 bit2 - bit0 为 000。所以 最后一个字节的机器码为 c8，可参考下图</div>
+		<img src="./assets/c8-big.png" alt="">
+		<img src="./assets/c8-small.png" alt="">
+		<div>从 V8 源码的角度分析，</div>
+		<img src="./assets/emit-sse-operand.png" alt="emit-sse-operand">
 		<img src="./assets/intel-addsd.png" alt="addsd">
-		
+		<img src="./assets/RegisterBase.png" alt="RegisterBase">
+		<img src="./assets/XMMRegister.png" alt="XMMRegister">
 	</div>
 </body>
 </html>
