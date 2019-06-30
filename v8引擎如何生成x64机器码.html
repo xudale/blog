@@ -113,10 +113,15 @@
 		</div>
 		<pre>
 	0.0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0001 &times; <span class="pr"> 2 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="super" style="left: 1px;top: -5px;">1100100</span></span> // 小数点后面有 52bit，IEEE 754 标准可以精确表示</pre>
+		<img src="./assets/no-equal.png" alt="no-equal">
 		<h3>V8 是如何生成浮点数加法的机器码的</h3>
-		<div>通过查看上一段 C 代码生成的 x64 汇编和 Intel 软件手册可知，x64 平台浮点数加法指令为 addsd 或 vaddsd。</div>
-		<img src="./assets/xcode-addsd.png" alt="addsd">
-		<div>因为 JavaScript 代码最开始是解释执行的，为了让 V8 能够生成机器码，需要把一段 JavaScript 反复执行，变成热点代码。</div>
+		<div>通过在 Xcode 中查看上一段 C 代码生成的 x64 汇编和 Intel 软件手册可知，x64 平台浮点数加法指令为 addsd 或 vaddsd。</div>
+		<div style="display: flex;">
+			<img src="./assets/xcode-addsd.png" alt="addsd">
+			<img src="./assets/intel-addsd.png" alt="addsd">	
+		</div>
+		
+		<div>因为在 V8 引擎中 JavaScript 代码最开始是解释执行的，为了生成机器码，以下代码特意在浮点数加法外额外添加一层 for 循环，目的是把一段 JavaScript 代码反复执行，变成热点代码，从而最终生成机器码。</div>
 		<img src="./assets/terminal.png" alt="terminal">
 		<div>需要执行的 JavaScript 代码是double.js，./out/x64.debug/d8 是 V8 编译后的产物 d8，d 是 debug 的缩写，--print-opt-code 打印汇编。</div>
 		<img src="./assets/d8.png" alt="d8">
@@ -130,7 +135,7 @@
 		<img src="./assets/c8-small.png" alt="">
 		<div>从 V8 源码的角度分析，</div>
 		<img src="./assets/emit-sse-operand.png" alt="emit-sse-operand">
-		<img src="./assets/intel-addsd.png" alt="addsd">
+		
 		<img src="./assets/RegisterBase.png" alt="RegisterBase">
 		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/register-x64.h#161" target="_blank">low_bits</a></div>
 		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/register.h#105" target="_blank">reg_code_</a></div>
