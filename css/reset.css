@@ -201,6 +201,20 @@ body {
     color: red;
 }
 
+@media only screen and (max-width: 500px) {
+    .content {
+        width: auto;
+        padding: 1em;
+    }
+    .content img {
+        max-width: 100%;
+        display: block!important;
+    }
+    pre {
+        white-space: pre-line;
+    }
+}
+
 
 
 
