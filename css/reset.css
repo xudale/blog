@@ -211,7 +211,7 @@ body {
         display: block!important;
     }
     pre {
-        white-space: pre-line;
+        overflow: auto;
     }
 }
 
