@@ -197,6 +197,9 @@ img {
 body {
     padding-bottom: 100px;
 }
+.highlight {
+    color: red;
+}
 
 
 
