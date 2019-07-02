@@ -24,11 +24,11 @@
 		</div>
 		<div><a href="https://cs.chromium.org/chromium/src/v8/?g=0" target="_blank">V8 源码</a>可在浏览器中查看，这个网站在代码浏览与检索方面的功能十分强大，可以快速的查看 C++ 变量的定义和引用。缺点是不能查看 V8 某个版本或某个 git tag 的源码，但依然强烈推荐。如果想要查看 V8 某个 tag 的源码，可以访问<a href="https://chromium.googlesource.com/v8/v8.git" target="_blank"> v8.git </a>。如果想要在本地编译 V8 源码，在参考<a href="https://v8.dev/docs/build-gn" target="_blank"> V8 官方文档</a>的基础上，还要注意墙的问题，浏览器能访问 google 不代表终端也能访问 google，终端也需要设置代理。</div>
 		<div>
-			以V8 7.7.0版本为例，源码目录结构如下：
+			以 V8 7.7.0 版本为例，源码目录结构如下：
 		</div>
 		<img src="./assets/v8-folder.png" alt="V8 源码">
 		<div>
-			有10余个文件夹，存放源码的文件夹为 src 和 third_party，做为一个前端，我们真正关心的源码位于 src 目录，其它目录粗略概述如下：
+			有 10 余个文件夹，存放源码的文件夹为 src 和 third_party，做为一个前端，我们真正关心的源码位于 src 目录，其它目录粗略概述如下：
 		</div>
 		<ul>
 			<li>测试：benchmarks、test、testing、infra</li>
@@ -158,7 +158,7 @@
   		emit(0xC0 | (dst.low_bits() << 3) | src.low_bits());
 	}</pre>
 		<div>
-			方法只有一行代码，代码逻辑完全遵守 Intel 手册中关于机器码的定义。首先，bit 7 - bit 6 是 11，对应源码中的 16 进制 0xC0。src 和 dst 是用来描述 x64 中 xmm0 和 xmm1 寄存器的 C++ 对象。类 XMMRegister 继承自类 RegisterBase，相应的继承了类 RegisterBase 的 <a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/register.h#105" target="_blank"> reg_code_ </a> 字段，reg_code_ 字段表示 Intel 软件手册规定的寄存器的序号。而 emit-sse-operand 方法中的两个参数 src 和 dst，src 对象描述的寄存器是 xmm0，相应的 reg_code_ 字段为 0；dst 对象描述的寄存器是 xmm1，相应的 reg_code_ 字段为 1。
+			方法只有一行代码，代码逻辑完全遵守 Intel 手册中关于机器码的定义。首先，bit 7 - bit 6 是 11，对应源码中的 16 进制 0xC0。src 和 dst 是用来描述 x64 中 xmm0 和 xmm1 寄存器的 C++ 对象。类 XMMRegister 继承自类 RegisterBase，相应的继承了类 RegisterBase 的 <a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/register.h#105" target="_blank"> reg_code_ </a> 字段，reg_code_ 字段表示 Intel 软件手册规定的寄存器的序号。emit-sse-operand 方法中的两个参数 src 和 dst，src 对象描述的寄存器是 xmm0，相应的 reg_code_ 字段为 0；dst 对象描述的寄存器是 xmm1，相应的 reg_code_ 字段为 1。
 		</div>
 		<pre>
 	class RegisterBase {
