@@ -105,7 +105,7 @@
 		<pre>
 	0.0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 1 &times; <span class="pr"> 2 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="super" style="left: 1px;top: -9px;">1100100</span></span> // 小数点后面有 52 个 0，1 个 1，共 53bit</pre>
 		<div>
-			由于 IEEE 754 只能表示 52bit 小数，<span class="pr"> 2 &nbsp;&nbsp;&nbsp;<span class="super" style="left: -12px;">47</span></span>移位对齐后的小数有 53bit，这 53bit 里面前 52bit 都是 0，保留，最低 bit 位是 1，舍弃。<span class="pr"> 2 &nbsp;&nbsp;&nbsp;<span class="super" style="left: -12px;">47</span></span>经过移位对齐后变成了0。所以在计算机中 a 等于 d。
+			由于 IEEE 754 只能表示 52bit 小数，<span class="pr"> 2 &nbsp;&nbsp;&nbsp;<span class="super" style="left: -12px;">47</span></span>移位对齐后的小数有 53bit，这 53bit 里面前 52bit 都是 0，保留，最低 bit 位是 1，舍弃。<span class="pr"> 2 &nbsp;&nbsp;&nbsp;<span class="super" style="left: -12px;">47</span></span>经过移位对齐后变成了 0。所以在 x86 中 a 等于 d。
 		</div>
 		<div>
 			若<span class="pr"> 2 &nbsp;&nbsp;&nbsp;<span class="super" style="left: -12px;">48</span></span>与<span class="pr"> 2 &nbsp;&nbsp;&nbsp;<span class="super">100</span></span>相加，同理，为与后者的指数对齐，前者需要移位，表示成二进制如下，此时不存在小数被舍弃的情况。
@@ -115,7 +115,7 @@
 		<div>本节内容总结如下图：</div>
 		<img src="./assets/no-equal.png" alt="no-equal">
 		<h3>V8 如何生成浮点数加法的机器码</h3>
-		<div>通过在 Xcode 中查看上一段 C 代码生成的 x64 汇编和<a href="https://www.intel.com/content/www/us/en/architecture-and-technology/64-ia-32-architectures-software-developer-manual-325462.html" target="_blank"> Intel 软件手册</a> 可知，x64 平台浮点数加法指令为 addsd（<span class="highlight">Add</span> <span class="highlight">S</span>calar <span class="highlight">D</span>ouble-Precision Floating-Point Values）或 vaddsd。</div>
+		<div>通过在 Xcode 中查看上一段 C 代码生成的 x64 汇编和<a href="https://www.intel.com/content/www/us/en/architecture-and-technology/64-ia-32-architectures-software-developer-manual-325462.html" target="_blank"> Intel 软件手册</a>可知，x64 平台浮点数加法指令为 addsd（<span class="highlight">Add</span> <span class="highlight">S</span>calar <span class="highlight">D</span>ouble-Precision Floating-Point Values）或 vaddsd。</div>
 		<img src="./assets/xcode-addsd.png" alt="addsd">
 		
 		<div>因为在 V8 引擎中 JavaScript 代码最开始是解释执行的，为了生成机器码，以下代码特意在浮点数加法外添加一层看似多余的 for 循环，目的是把一段 JavaScript 代码反复执行，变成热点代码，从而最终生成机器码。</div>
@@ -142,7 +142,7 @@
 	}</pre>
 		<div>addsd 方法内部 3 次调用 emit 方法，3 次调用 emit 方法的参数分别为 0xF2，0x0F，0x58，对比 Intel 软件手册，可知这 3 个参数对应 addsd 指令的机器码。</div>
 		<img src="./assets/intel-addsd.png" alt="addsd">
-		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/assembler-x64.h#1795" target="_blank"> emit </a>方法定义如下：</div>
+		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/assembler-x64.h#1795" target="_blank">emit </a>方法定义如下：</div>
 		<pre>
 	void emit(byte x) { *pc_++ = x; }</pre>
 		<div>pc_是一个字节指针，*pc_++ 相当于先执行 pc++ 将指针指向下一字节，然后执行 *pc_ = x；emit 方法的作用是将传入的机器码，也就是参数 x，写入内存。变量取名为 pc_，个人猜测是因为多数 CPU 都有一个特殊功能寄存器指向下一条要执行的指令的地址，即程序计数器 PC（Program Counter），x86 中相应的特殊寄存器为 IP（Instruction Pointer）。机器码的执行与生成可以理解为两个相反的过程。机器码在执行阶段会连续从 PC 寄存器指向的内存中读取机器码；机器码在生成阶段会连续向 pc_ 指针指向的内存中写入机器码。</div>
