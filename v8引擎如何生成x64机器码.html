@@ -168,7 +168,7 @@
   		explicit constexpr RegisterBase(int code) : reg_code_(code) {}
   		int reg_code_;
 	};</pre>
-		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/register-x64.h#161" target="_blank"> low_bits </a>方法定义如下，实际上是取了 reg_code_ 字段的低 3 位，回头再看 emit-sse-operand 方法，可知 dst.low_bits() << 3 的值是 8，src.low_bits() 的值是 0。0xC0 | (dst.low_bits() << 3) | src.low_bits() 相当于0xC0 | 8 | 0，结果刚好为 0xC8。</div>
+		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/register-x64.h#161" target="_blank">low_bits </a>方法定义如下，实际上是取了 reg_code_ 字段的低 3 位，回头再看 emit-sse-operand 方法，可知 dst.low_bits() << 3 的值是 8，src.low_bits() 的值是 0。0xC0 | (dst.low_bits() << 3) | src.low_bits() 相当于0xC0 | 8 | 0，结果刚好为 0xC8。</div>
 		<pre>
 	class XMMRegister : public RegisterBase<XMMRegister, kDoubleAfterLast> {
  		public:
