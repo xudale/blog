@@ -63,7 +63,7 @@
 		})
 	}</pre>
 		<div>
-			在一个 Web 前端页面里，这段代码只会执行一次，如果没有解释器，这段 JavaScript 代码在一开始就会被编译成机器码，执行。做为 Vue 框架的使用者，我们知道这段代码只会被执行一次。但 V8 无法确定这段代码是否只会被执行一次，执行一次后，机器码还是会继续占用内存。所以在2016年，V8 引入了解释器 Ignition。
+			在一个 Web 前端页面里，这段代码只会执行一次，如果没有解释器，这段 JavaScript 代码在一开始就会被编译成机器码，执行。做为 Vue 框架的使用者，我们知道这段代码只会被执行一次。但 V8 无法确定这段代码是否只会被执行一次，执行一次后。机器码还是会继续占用内存。所以在 2016 年，V8 引入了解释器 Ignition。
 		</div>
 		<h3>为什么 JavaScript 浮点数运算不精确</h3>
 		<div>网络上相关的文章非常多，浮点数运算不精确的语言不只 JavaScript，C/C++/Java/Python/Matlab 做浮点数运算也不精确，甚至汇编也是如此。如以下 C 代码：</div>
@@ -120,11 +120,11 @@
 		
 		<div>因为在 V8 引擎中 JavaScript 代码最开始是解释执行的，为了生成机器码，以下代码特意在浮点数加法外添加一层看似多余的 for 循环，目的是把一段 JavaScript 代码反复执行，变成热点代码，从而最终生成机器码。</div>
 		<img src="./assets/terminal.png" alt="terminal">
-		<div>将目录切换至 V8 目录，执行以下命令</div>
+		<div>打开终端，将目录切换至 V8 目录，执行以下命令</div>
 		<pre>
 	./out/x64.debug/d8  --print-opt-code ./fenxiang/double.js</pre>
 		<div>
-			./out/x64.debug/d8 是 V8 编译后的可执行文件 d8，d 是 debug 的缩写，--print-opt-code 参数的含义是打印汇编，./fenxiang/double.js 是刚才我们看到的 JavaScript 代码。执行完命令后，终端有反汇编输出，说明我们的 JavaScript 代码已被编译为机器码，和浮点数加法相关的反汇编截取如下：
+			./out/x64.debug/d8 是 V8 编译后的可执行文件 d8，d 是 debug 的缩写；--print-opt-code 参数的含义是打印汇编；./fenxiang/double.js 是刚才我们看到的 JavaScript 代码。执行完命令后，终端有反汇编输出，说明我们的 JavaScript 代码已被编译为机器码，和浮点数加法相关的反汇编截取如下：
 		</div>
 		<img src="./assets/d8.png" alt="d8">
 		<div>从输出可以看到浮点数加法的汇编语句:</div>
@@ -147,7 +147,7 @@
 	void emit(byte x) { *pc_++ = x; }</pre>
 		<div>pc_是一个字节指针，*pc_++ 相当于先执行 pc++ 将指针指向下一字节，然后执行 *pc_ = x；emit 方法的作用是将传入的机器码，也就是参数 x，写入内存。变量取名为 pc_，个人猜测是因为多数 CPU 都有一个特殊功能寄存器指向下一条要执行的指令的地址，即程序计数器 PC（Program Counter），x86 中相应的特殊寄存器为 IP（Instruction Pointer）。机器码的执行与生成可以理解为两个相反的过程。机器码在执行阶段会连续从 PC 寄存器指向的内存中读取机器码；机器码在生成阶段会连续向 pc_ 指针指向的内存中写入机器码。</div>
 		<div>至此，addsd xmm1, xmm0 语句对应的 4 字节机器码 f20f58c8，我们已经分析了其中 3 个字节；因 emit_optional_rex_32 方法没有生成机器码，本文忽略。下面开始分析最后的 1 字节机器码 c8 是如何生成的。这里分别从 Intel 机器码定义和 V8 源码两个角度进行分析。</div>
-		<div>从 Intel x64 机器码定义的角度来看，可以简述如下：因 addsd xmm1, xmm0 的两个操作数都是寄存器，故 bit7 - bit6 是 11，xmm1 的序号为 001，故 bit5 - bit3 为 001，xmm0 的序号为 000，故 bit2 - bit0 为 000。所以 addsd xmm1, xmm0 语句的机器码的最后一个字节为 c8，可参考下图。</div>
+		<div>从 Intel x64 机器码定义的角度来看，可以简述如下：因 addsd xmm1, xmm0 的两个操作数都是寄存器，故 bit7 - bit6 是 11；xmm1 的序号为 001，故 bit5 - bit3 为 001；xmm0 的序号为 000，故 bit2 - bit0 为 000。所以 addsd xmm1, xmm0 语句的机器码的最后一个字节为 c8，可参考下图。</div>
 		<div style="text-align: center;">
 			<img style="display: inline-block;" src="./assets/c8-big.png" alt="">
 			<img style="display: inline-block;" src="./assets/c8-small.png" alt="">	
