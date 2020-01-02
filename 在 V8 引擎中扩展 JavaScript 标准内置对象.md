@@ -72,9 +72,9 @@ main 函数调用 times10 函数，从生成的汇编来看，编译完成后 ti
 看到这里，可以看出 C 语言函数和 JavaScript 函数的一个区别，由于 C 语言函数体对应机器码，函数名称对应地址，所以 C 语言不支持为函数添加属性。
 ### JavaScript 语言函数的底层表示
 
-在 V8 中，JavaScript 的函数在底层对应的是一个 C++ 对象，![代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
+在 V8 中，JavaScript 的函数在底层对应的是一个 C++ 对象，[代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
 
-```c
+```c++
     // JSFunction describes JavaScript functions.
     class JSFunction : public JSObject {
         public:
