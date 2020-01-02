@@ -69,9 +69,46 @@ main 函数对应的 X64 汇编如下：
 ```
 
 main 函数调用 times10 函数，从生成的汇编来看，编译完成后 times10 这个函数名对应的是地址，也就是说 C 语言的函数名对应的是地址。
-
-
-
-
-
+看到这里，可以看出 C 语言函数和 JavaScript 函数的一个区别，由于 C 语言函数体对应机器码，函数名称对应地址，所以 C 语言不支持为函数添加属性。
 ### JavaScript 语言函数的底层表示
+
+在 V8 中，JavaScript 的函数在底层对应的是一个 C++ 对象，![代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
+
+```c
+    // JSFunction describes JavaScript functions.
+    class JSFunction : public JSObject {
+        public:
+        // [prototype_or_initial_map]:
+        DECL_ACCESSORS(prototype_or_initial_map, Object)
+        // [shared]: The information about the function that
+        // can be shared by instances.
+        DECL_ACCESSORS(shared, SharedFunctionInfo)
+        static const int kLengthDescriptorIndex = 0;
+        static const int kNameDescriptorIndex = 1;
+        // Home object descriptor index when function has a [[HomeObject]] slot.
+        static const int kMaybeHomeObjectDescriptorIndex = 2;
+        // [context]: The context for this function.
+        inline Context context();
+        inline bool has_context() const;
+        inline void set_context(Object context);
+        inline JSGlobalProxy global_proxy();
+        inline NativeContext native_context();
+        inline int length();
+        static Handle<Object> GetName(Isolate* isolate, Handle<JSFunction> function);
+        static Handle<NativeContext> GetFunctionRealm(Handle<JSFunction> function);
+        // [code]: The generated code object for this function.  Executed
+        // when the function is invoked, e.g. foo() or new foo(). See
+        // [[Call]] and [[Construct]] description in ECMA-262, section
+        // 8.6.2, page 27.
+        inline Code code() const;
+        inline void set_code(Code code);
+        inline void set_code_no_write_barrier(Code code);
+        // 源码太长，复制粘贴到此结束
+    }
+```
+
+
+
+
+
+
