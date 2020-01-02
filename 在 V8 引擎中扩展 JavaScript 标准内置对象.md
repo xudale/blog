@@ -22,6 +22,6 @@ JavaScript 标准内置对象，如 Math、Array 和 Promise 等是每一个前�
 
 代码逻辑非常简单，定义了一个名为 times10 的函数，函数的功能是将入参乘 10 后返回。main 函数中调用 times10 函数，函数运行结果在 Xcode 中如下：
 
-![运行结果](https://xudale.github.io/blog/assets/ctimes10.png)
+![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/ctimes10.png)
 
 ### JavaScript 语言函数的底层表示
