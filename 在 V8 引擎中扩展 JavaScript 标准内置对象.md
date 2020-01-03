@@ -128,13 +128,54 @@ JavaScript 的函数有一个名为 [toString](https://developer.mozilla.org/en-
     Math.max.toString() // 输出 "function max() { [native code] }"
 ```
 
-并没有输出函数的实现代码，而且输出的字符串 native code 是从哪里来的？这个问题困扰了笔者 3 年，下面，我们一起看下 JavaScript 函数的 toString 方法在 V8 中的实现。
+并没有输出函数的实现代码，而且输出的字符串 native code 是从哪里来的？这个问题困扰了笔者 3 年，下面，我们一起看下 JavaScript 函数的 toString 方法在 V8 中的实现，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-function.cc#269)
 
+```c++
+    // ES6 section 19.2.3.5 Function.prototype.toString ( )
+    BUILTIN(FunctionPrototypeToString) {
+        HandleScope scope(isolate);
+        Handle<Object> receiver = args.receiver();
+        if (receiver->IsJSBoundFunction()) {
+            return *JSBoundFunction::ToString(Handle<JSBoundFunction>::cast(receiver));
+        }
+        if (receiver->IsJSFunction()) {
+            return *JSFunction::ToString(Handle<JSFunction>::cast(receiver));
+        }
+        // 源码太长，而且本文中的例子在上面的 return 已经返回，故后面省略，对源码感兴趣的朋友请点击上面的源码链接
+    }
+```
 
+BUILTIN 是 C++ 定义的宏，它会新生成一个类，上面的代码会变成这个新生成的 C++ 类的一个方法，具体细节后面再看。Math.max 是 JSFunction 的实例，receiver->IsJSFunction() 为true，会执行 JSFunction 的 ToString 类方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#5405)
 
+```c++
+    // static
+    Handle<String> JSFunction::ToString(Handle<JSFunction> function) {
+        Isolate* const isolate = function->GetIsolate();
+        Handle<SharedFunctionInfo> shared_info(function->shared(), isolate);
+        // Check if {function} should hide its source code.
+        if (!shared_info->IsUserJavaScript()) {
+            return NativeCodeFunctionSourceString(shared_info);
+        }
+        // 源码太长，而且本文中的例子在上面的 return 已经返回，故后面省略，对源码感兴趣的朋友请点击上面的源码链接
+    }
+```
 
+Math.max 是 V8 内置函数，是不由用户定义的，!shared_info->IsUserJavaScript() 结果是 true，执行 NativeCodeFunctionSourceString。[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#53935)
 
+```c++
+    Handle<String> NativeCodeFunctionSourceString(
+        Handle<SharedFunctionInfo> shared_info) {
+        Isolate* const isolate = shared_info->GetIsolate();
+        IncrementalStringBuilder builder(isolate);
+        builder.AppendCString("function ");
+        builder.AppendString(handle(shared_info->Name(), isolate));
+        builder.AppendCString("() { [native code] }");
+        return builder.Finish().ToHandleChecked();
+    }
+```
 
+我们终于看到了期待的字符串 native code，从源码来看，Math.max.toString() 输出的字符串 native code 一点也不神秘。
+梳理一下 JavaScript 函数 toString 方法的调用链路：BUILTIN(FunctionPrototypeToString) -> JSFunction::ToString -> NativeCodeFunctionSourceString。可见 JavaScript 函数对应 V8 的 JSFunction的实例，JavaScript 函数的 toString 方法对应 V8 的 JSFunction::ToString 方法。
 
 
 
