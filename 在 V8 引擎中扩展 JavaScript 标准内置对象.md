@@ -160,7 +160,7 @@ BUILTIN 是 C++ 定义的宏，它会新生成一个类，上面的代码会变�
     }
 ```
 
-Math.max 是 V8 内置函数，是不由用户定义的，!shared_info->IsUserJavaScript() 结果是 true，执行 NativeCodeFunctionSourceString。[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#53935)
+Math.max 是 V8 内置函数，不是由用户定义的，!shared_info->IsUserJavaScript() 结果是 true，执行 NativeCodeFunctionSourceString。[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#53935)
 
 ```c++
     Handle<String> NativeCodeFunctionSourceString(
@@ -175,6 +175,7 @@ Math.max 是 V8 内置函数，是不由用户定义的，!shared_info->IsUserJa
 ```
 
 我们终于看到了期待的字符串 native code，从源码来看，Math.max.toString() 输出的字符串 native code 一点也不神秘。
+
 梳理一下 JavaScript 函数 toString 方法的调用链路：BUILTIN(FunctionPrototypeToString) -> JSFunction::ToString -> NativeCodeFunctionSourceString。可见 JavaScript 函数对应 V8 的 JSFunction的实例，JavaScript 函数的 toString 方法对应 V8 的 JSFunction::ToString 方法。
 
 
