@@ -72,7 +72,7 @@ main 函数调用 times10 函数，从生成的汇编来看，编译完成后 ti
 看到这里，可以看出 C 语言函数和 JavaScript 函数的一个区别，由于 C 语言函数体对应机器码，函数名称对应地址，所以 C 语言不支持为函数添加属性。
 ### JavaScript 语言函数的底层表示
 
-在 V8 中，JavaScript 的函数在底层对应的是一个 C++ 对象，[代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
+在 V8 中，JavaScript 的函数在底层对应的是一个 C++ 对象，[声明代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
 
 ```c++
     // JSFunction describes JavaScript functions.
@@ -106,6 +106,33 @@ main 函数调用 times10 函数，从生成的汇编来看，编译完成后 ti
         // 源码太长，复制粘贴到此结束
     }
 ```
+
+从代码的第一行注释
+
+```c++
+    // JSFunction describes JavaScript functions.
+```
+
+可知，JavaScript 的函数在 V8 里是一个 JSFunction 的实例，JSFunction 源码很长，这里举两个例子来佐证 JavaScript 函数是 V8 中的一个 C++ 对象。
+
+JavaScript 的函数有一个名为 [toString](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/toString) 的方法，可以输出一个函数的字符串表示。比如任意自定义函数一个函数，然后调用这个函数的 toString 方法，如下：
+
+```JavaScript
+    a = _ => console.log(_)
+    a.toString() // 输出 "_ => console.log(_)"
+```
+
+可以获得函数的实现代码，但当对内置对象的方法调用 toSring 时，比如：
+
+```JavaScript
+    Math.max.toString() // 输出 "function max() { [native code] }"
+```
+
+并没有输出函数的实现代码，而且输出的字符串 native code 是从哪里来的？这个问题困扰了笔者 3 年，下面，我们一起看下 JavaScript 函数的 toString 方法在 V8 中的实现。
+
+
+
+
 
 
 
