@@ -113,7 +113,7 @@ main 函数调用 times10 函数，从生成的汇编来看，编译完成后 ti
     // JSFunction describes JavaScript functions.
 ```
 
-可知，JavaScript 的函数在 V8 里是一个 JSFunction 的实例，JSFunction 源码很长，这里举两个例子来佐证 JavaScript 函数是 V8 中的一个 C++ 对象。
+可知，JavaScript 的函数在 V8 里是一个 JSFunction 的实例，JSFunction 源码很长，这里举例佐证 JavaScript 函数是 V8 中的一个 C++ 对象。
 
 JavaScript 的函数有一个名为 [toString](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/toString) 的方法，可以输出一个函数的字符串表示。比如任意自定义函数一个函数，然后调用这个函数的 toString 方法，如下：
 
@@ -178,6 +178,60 @@ Math.max 是 V8 内置函数，不是由用户定义的，!shared_info->IsUserJa
 
 梳理一下 JavaScript 函数 toString 方法的调用链路：BUILTIN(FunctionPrototypeToString) -> JSFunction::ToString -> NativeCodeFunctionSourceString。可见 JavaScript 函数对应 V8 的 JSFunction的实例，JavaScript 函数的 toString 方法对应 V8 的 JSFunction::ToString 方法。
 
+JavaScript 的函数还有 [name](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/name) 属性，比如：
+
+```JavaScript
+    a = _ => console.log(_)
+    a.name // 输出函数名 "a"
+```
+
+JavaScript 函数的 name 属性在 V8 里面调用了 JSFunction 的 GetName 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#4837)
+
+```c++
+    // static
+    Handle<Object> JSFunction::GetName(Isolate* isolate,
+                                   Handle<JSFunction> function) {
+    if (function->shared().name_should_print_as_anonymous()) {
+        return isolate->factory()->anonymous_string();
+    }
+    return handle(function->shared().Name(), isolate);
+}
+```
+
+在 JavaScript 语言中函数是一等公民，从 V8 源码的角度来理解，JavaScript 函数在 V8 中是一个 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。
+
+在 V8 中 JSFunction 继承自 JSObject，如下：
+
+```c++
+    // JSFunction describes JavaScript functions.
+    class JSFunction : public JSObject {
+        // 略
+    }
+```
+
+JSObject 的[定义如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#274)
+
+```c++
+    // The JSObject describes real heap allocated JavaScript objects with
+    // properties.
+    // Note that the map of JSObject changes during execution to enable inline
+    // caching.
+    class JSObject : public JSReceiver {
+        public:
+            static bool IsUnmodifiedApiObject(FullObjectSlot o);
+            V8_EXPORT_PRIVATE static V8_WARN_UNUSED_RESULT MaybeHandle<JSObject> New(
+            Handle<JSFunction> constructor, Handle<JSReceiver> new_target,
+            Handle<AllocationSite> site);
+            static MaybeHandle<NativeContext> GetFunctionRealm(Handle<JSObject> object);
+            // 9.1.12 ObjectCreate ( proto [ , internalSlotsList ] )
+            // Notice: This is NOT 19.1.2.2 Object.create ( O, Properties )
+            static V8_WARN_UNUSED_RESULT MaybeHandle<JSObject> ObjectCreate(
+                Isolate* isolate, Handle<Object> prototype);
+        // 源码太长，略。。。
+    }
+```
+
+在 JavaScript 层面看来，函数是函数，对象是对象，二者的区别很大。但从 V8 源码来看 JavaScript 的函数和对象都与类 JSObject 有着密切的关系，二都的相同点远大于不同点，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
 
 
 
