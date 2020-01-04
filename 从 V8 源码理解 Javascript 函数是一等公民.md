@@ -184,14 +184,14 @@ Math.max 是 V8 内置函数，不是由用户定义的，!shared_info->IsUserJa
 
 梳理一下 JavaScript 函数 toString 方法的调用链路：BUILTIN(FunctionPrototypeToString) -> JSFunction::ToString -> NativeCodeFunctionSourceString。可见 JavaScript 函数对应 V8 的 JSFunction的实例，JavaScript 函数的 toString 方法对应 V8 的 JSFunction::ToString 方法。
 
-JavaScript 的函数还有 [name](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/name) 属性，比如：
+JavaScript 函数有 [name](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/name) 属性，比如：
 
 ```JavaScript
     a = _ => console.log(_)
     a.name // 输出函数名 "a"
 ```
 
-JavaScript 函数的 name 属性在 V8 里面调用了 JSFunction 的 GetName 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#4837)
+JavaScript 函数的 name 属性的实现，调用了 JSFunction 的 GetName 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#4837)
 
 ```c++
     // static
@@ -204,6 +204,18 @@ JavaScript 函数的 name 属性在 V8 里面调用了 JSFunction 的 GetName �
 }
 ```
 
+JavaScript 函数有 [length](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/length) 属性，比如：
+
+```JavaScript
+    a = _ => console.log(_)
+    a.length // 输出 1
+```
+
+JavaScript 函数的 length 属性的实现，调用了 JSFunction 的 length 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects-inl.h#550)
+
+```c++
+    int JSFunction::length() { return shared().length(); }
+```
 
 在 JavaScript 语言中函数是一等公民，从 V8 源码的角度来理解，JavaScript 函数在 V8 中是一个 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。
 
@@ -242,7 +254,7 @@ JSObject 的[定义如下：](https://chromium.googlesource.com/v8/v8.git/+/refs
 
 ![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/complex-proto.png)
 
-但从 V8 源码来看 JavaScript 的函数和对象都与类 JSObject 有着密切的关系，二都的相同点远大于不同点，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
+但从 V8 源码来看 JavaScript 函数是 JSFunction 的实例，对象是 JSObject 的实例，JSObject 是 JSFunction 的父类，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
 
 ## 总结
 
