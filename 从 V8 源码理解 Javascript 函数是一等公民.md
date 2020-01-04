@@ -78,7 +78,7 @@ main 函数调用 times10 函数，从生成的汇编来看，编译完成后 ti
 
 ## JavaScript 语言函数的底层表示
 
-在 V8 中，JavaScript 的函数在底层对应的是一个 C++ 对象，[声明代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
+在 V8 中，JavaScript 函数在底层对应的是一个 C++ 对象，[声明代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
 
 ```c++
     // JSFunction describes JavaScript functions.
@@ -204,6 +204,7 @@ JavaScript 函数的 name 属性在 V8 里面调用了 JSFunction 的 GetName �
 }
 ```
 
+
 在 JavaScript 语言中函数是一等公民，从 V8 源码的角度来理解，JavaScript 函数在 V8 中是一个 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。
 
 在 V8 中 JSFunction 继承自 JSObject，如下：
@@ -237,9 +238,19 @@ JSObject 的[定义如下：](https://chromium.googlesource.com/v8/v8.git/+/refs
     }
 ```
 
-在 JavaScript 层面看来，函数是函数，对象是对象，二者的区别很大。但从 V8 源码来看 JavaScript 的函数和对象都与类 JSObject 有着密切的关系，二都的相同点远大于不同点，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
+在 JavaScript 层面看来，函数（Function）和对象（Object）的关系是你中有我，我中有你，互相依偎，唇齿相依，如下图：
 
-类比 C y
+![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/complex-proto.png.png)
+
+但从 V8 源码来看 JavaScript 的函数和对象都与类 JSObject 有着密切的关系，二都的相同点远大于不同点，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
+
+## 总结
+
+C 语言编译器将 C 语言函数编译成了机器码，V8 将 JavaScript 函数编译成 C++ 对象，C++ 对象是 C++ 世界中当之无愧的一等公民，JavaScript 函数当然也是一等公民。
+
+
+
+
 
 
 
