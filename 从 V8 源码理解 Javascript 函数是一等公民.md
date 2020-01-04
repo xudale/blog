@@ -240,7 +240,7 @@ JSObject 的[定义如下：](https://chromium.googlesource.com/v8/v8.git/+/refs
 
 在 JavaScript 层面看来，函数（Function）和对象（Object）的关系是你中有我，我中有你，互相依偎，唇齿相依，如下图：
 
-![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/complex-proto.png.png)
+![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/complex-proto.png)
 
 但从 V8 源码来看 JavaScript 的函数和对象都与类 JSObject 有着密切的关系，二都的相同点远大于不同点，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
 
