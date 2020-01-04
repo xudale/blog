@@ -74,11 +74,11 @@ main 函数对应的 X64 汇编如下：
 main 函数调用 times10 函数，从生成的汇编来看，编译完成后 times10 这个函数名对应的是地址，也就是说 C 语言的函数名在编译后将不复存在，它对应的是地址。
 看到这里，可以看出 C 语言函数和 JavaScript 函数的区别，由于 C 语言函数体对应机器码，函数名称对应地址，所以 C 语言不支持为函数添加属性。
 
-对照一等公民的定义，虽然 C 语言的函数不能直接做为参数传递，也不能直接做为结果返回，但通过强大的指针，可以完成这一切。所以 C 语言的函数“勉强”也是一等公民，笔者的第一份工作是就是 C 语言程序员，C 语言程序员比较关注底层实现，基本不会讨论也不会在意 C 语言函数到底是不是一等公民。笔者写这段文字的目的是为了对比 JavaScript 语言函数的底层表示，见下文。
+对照一等公民的定义，虽然 C 语言的函数不能直接做为参数传递，也不能直接做为结果返回，但通过强大的指针，可以完成这一切。所以 C 语言的函数“勉强”是一等公民，笔者的第一份工作是就是 C 语言程序员，C 语言程序员比较关注底层实现，基本不会讨论也不会在意 C 语言函数到底是不是一等公民。写这段文字的目的是为了对比 JavaScript 语言函数的底层表示，见下文。
 
 ## JavaScript 语言函数的底层表示
 
-在 V8 中，JavaScript 函数在底层对应的是一个 C++ 对象，[声明代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
+V8 会将 JavaScript 函数编译成 C++ 类 JSFunction 的实例，JSFunction [声明代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
 
 ```c++
     // JSFunction describes JavaScript functions.
