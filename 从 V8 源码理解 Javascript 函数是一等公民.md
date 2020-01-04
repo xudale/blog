@@ -1,9 +1,12 @@
-# 在 V8 引擎中扩展 JavaScript 标准内置对象
+# 从 V8 源码理解 Javascript 函数是一等公民
 ## 摘要
-JavaScript 标准内置对象，如 Math、Array 和 Promise 等是每一个前端程序员日常工作的基础，这些内置对象在 JavaScript 层面上是函数或者对象。首先，本文会从底层的角度对比一下 C 语言的函数和 JavaScript 语言函数的区别；然后，举例说明如何在 V8 中为 JavaScript 的 Math 对象添加一个名为 times10 的方法，并分析相关源码。
-## 函数的底层表示
-### C 语言函数的底层表示
-如以下代码，可复制粘贴然后在 [https://tool.lu/coderunner/](https://tool.lu/coderunner/) 运行。
+本文从 V8 源码的角度分析为什么 Javascript 语言中的函数是一等公民。首先会介绍一等公民的概念，然后对比一下 C 语言函数和 Javascript 函数的底层表示，以便理解为什么说 Javascript 函数是一等公民。
+## 什么是编程语言中的一等公民
+> In computer science, a programming language is said to have first-class functions if it treats functions as first-class citizens. This means the language supports passing functions as arguments to other functions, returning them as the values from other functions, and assigning them to variables or storing them in data structures. 
+
+以上内容来自[维基百科](https://en.wikipedia.org/wiki/First-class_function)，也就是说，在编程语言中，一等公民可以作为函数参数，可以作为函数返回值，也可以赋值给变量。
+## C 语言函数的底层表示
+以下代码，可复制粘贴在 [https://tool.lu/coderunner/](https://tool.lu/coderunner/) 运行。
 
 ```c
     #include <stdio.h>
@@ -35,7 +38,7 @@ times10 函数对应的 X64 汇编如下：
     0x100000f3c <+12>: retq 
 ```
 
-C 语言是编译型语言，C 语言的函数体在编译后会生成一个汇编语言的函数，或者说 C 语言的函数体最终会编译为机器码，C 语言的函数体在底层对应的是在虚拟内存中一片连续的机器码。
+C 语言是编译型语言，编译器会将 C 语言的函数体编译成机器码，反汇编后就是上面看到的汇编语言函数。
 
 main 函数对应的 X64 汇编如下：
 
@@ -68,9 +71,12 @@ main 函数对应的 X64 汇编如下：
     0x100000f60 <+32>: callq  0x100000f30         ; 调用 times10
 ```
 
-main 函数调用 times10 函数，从生成的汇编来看，编译完成后 times10 这个函数名对应的是地址，也就是说 C 语言的函数名对应的是地址。
-看到这里，可以看出 C 语言函数和 JavaScript 函数的一个区别，由于 C 语言函数体对应机器码，函数名称对应地址，所以 C 语言不支持为函数添加属性。
-### JavaScript 语言函数的底层表示
+main 函数调用 times10 函数，从生成的汇编来看，编译完成后 times10 这个函数名对应的是地址，也就是说 C 语言的函数名在编译后将不复存在，它对应的是地址。
+看到这里，可以看出 C 语言函数和 JavaScript 函数的区别，由于 C 语言函数体对应机器码，函数名称对应地址，所以 C 语言不支持为函数添加属性。
+
+对照一等公民的定义，虽然 C 语言的函数不能直接做为参数传递，也不能直接做为结果返回，但通过强大的指针，可以完成这一切。所以 C 语言的函数“勉强”也是一等公民，笔者的第一份工作是就是 C 语言程序员，C 语言程序员比较关注底层实现，基本不会讨论也不会在意 C 语言函数到底是不是一等公民。笔者写这段文字的目的是为了对比 JavaScript 语言函数的底层表示，见下文。
+
+## JavaScript 语言函数的底层表示
 
 在 V8 中，JavaScript 的函数在底层对应的是一个 C++ 对象，[声明代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
 
