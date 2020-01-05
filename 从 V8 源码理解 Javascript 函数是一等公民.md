@@ -119,9 +119,9 @@ V8 会将 JavaScript 函数编译成 C++ 类 JSFunction 的实例，JSFunction [
     // JSFunction describes JavaScript functions.
 ```
 
-可知，JavaScript 函数在 V8 中是一个 JSFunction 的实例，JSFunction 源码很长，这里举例佐证 JavaScript 函数是 V8 中的一个 C++ 对象。
+可知，JavaScript 函数在 V8 中是 JSFunction 的实例，JSFunction 源码很长，这里举例佐证 JavaScript 函数是 V8 中的一个 C++ 对象。
 
-JavaScript 函数的 [toString](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/toString) 方法，可以输出一个函数的字符串表示。比如定义一个函数，然后调用这个函数的 toString 方法，如下：
+JavaScript 函数的 [toString](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/toString) 方法，可以输出一个函数的字符串表示。比如：
 
 ```JavaScript
     a = _ => console.log(_)
@@ -221,7 +221,7 @@ JavaScript 函数 length 属性的实现过程中，调用了 JSFunction 的 len
     int JSFunction::length() { return shared().length(); }
 ```
 
-举例佐证到此为止，JavaScript 函数在 V8 中是 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。理解了 JavaScript 函数是 C++ 对象，也很容易理解 JavaScript 函数式编程中的一些写法，比如：
+举例佐证到此为止，可见 JavaScript 函数在 V8 中是 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。理解了 JavaScript 函数是 C++ 对象，也很容易理解 JavaScript 函数式编程中的一些写法，比如：
 
 ```JavaScript
     const isNumber = _ => !isNaN(_);
