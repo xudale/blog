@@ -121,14 +121,14 @@ V8 会将 JavaScript 函数编译成 C++ 类 JSFunction 的实例，JSFunction [
 
 可知，JavaScript 函数在 V8 中是 JSFunction 的实例，JSFunction 源码很长，这里举例佐证 JavaScript 函数是 V8 中的一个 C++ 对象。
 
-JavaScript 函数的 [toString](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/toString) 方法，可以输出一个函数的字符串表示。比如：
+JavaScript 函数的 [toString](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/toString) 方法，可以输出一个函数的实现代码。比如：
 
 ```JavaScript
     a = _ => console.log(_)
     a.toString() // 输出 "_ => console.log(_)"
 ```
 
-可以获得函数的实现代码，但当对内置对象的方法调用 toString 时，比如：
+但当对内置对象的方法调用 toString 时，比如：
 
 ```JavaScript
     Math.max.toString() // 输出 "function max() { [native code] }"
@@ -281,7 +281,7 @@ V8 会将 JavaScript 对象编译成 JSObject 的实例，从 JavaScript 层面�
 
 ![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/complex-proto.png)
 
-从 V8 源码来看 JavaScript 函数是 JSFunction 的实例，JavaScript 对象是 JSObject 的实例，JSObject 是 JSFunction 的父类，所以 JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
+从 V8 源码来看，JavaScript 函数是 JSFunction 的实例，JavaScript 对象是 JSObject 的实例，JSObject 是 JSFunction 的父类，所以 JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
 
 ## 总结
 
