@@ -23,7 +23,7 @@
     }
 ```
 
-代码逻辑非常简单，定义了一个名为 times10 的函数，函数的功能是将入参乘 10 后返回。main 函数中调用 times10 函数，函数运行结果在 Xcode 中如下：
+代码逻辑非常简单，定义了 times10 函数，函数的功能是将入参乘 10 后返回。main 函数调用 times10 函数，代码运行结果在 Xcode 中如下：
 
 ![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/ctimes10.png)
 
@@ -71,10 +71,10 @@ main 函数对应的 X64 汇编如下：
     0x100000f60 <+32>: callq  0x100000f30         ; 调用 times10
 ```
 
-main 函数调用 times10 函数，从生成的汇编来看，编译完成后 times10 这个函数名对应的是地址，也就是说 C 语言的函数名在编译后将不复存在，它对应的是地址。
+main 函数调用 times10 函数，从生成的汇编来看，编译完成后 times10 这个函数名称对应的是地址，也就是说 C 语言的函数名在编译后将不复存在，它对应的是地址。
 看到这里，可以看出 C 语言函数和 JavaScript 函数的区别，由于 C 语言函数体对应机器码，函数名称对应地址，所以 C 语言不支持为函数添加属性。
 
-对照一等公民的定义，虽然 C 语言的函数不能直接做为参数传递，也不能直接做为结果返回，但通过强大的指针，可以完成这一切。所以 C 语言的函数“勉强”是一等公民，笔者的第一份工作是就是 C 语言程序员，C 语言程序员比较关注底层实现，基本不会讨论也不会在意 C 语言函数到底是不是一等公民。写这段文字的目的是为了对比 JavaScript 语言函数的底层表示，见下文。
+对照编程语言一等公民的定义，虽然 C 语言的函数不能直接做为参数传递，也不能直接做为结果返回，但通过函数指针，可以完成这一切。所以 C 语言的函数“勉强”是一等公民，笔者的第一份工作是 C 语言程序员，C 语言程序员比较关注底层实现，基本不会讨论也不会在意 C 语言函数到底是不是一等公民。写这段文字的目的是为了对比 JavaScript 语言函数的底层表示，见下文。
 
 ## JavaScript 语言函数的底层表示
 
@@ -113,15 +113,15 @@ V8 会将 JavaScript 函数编译成 C++ 类 JSFunction 的实例，JSFunction [
     }
 ```
 
-从代码的第一行注释
+从代码的第一行注释：
 
 ```c++
     // JSFunction describes JavaScript functions.
 ```
 
-可知，JavaScript 的函数在 V8 里是一个 JSFunction 的实例，JSFunction 源码很长，这里举例佐证 JavaScript 函数是 V8 中的一个 C++ 对象。
+可知，JavaScript 函数在 V8 中是一个 JSFunction 的实例，JSFunction 源码很长，这里举例佐证 JavaScript 函数是 V8 中的一个 C++ 对象。
 
-JavaScript 的函数有一个名为 [toString](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/toString) 的方法，可以输出一个函数的字符串表示。比如任意自定义函数一个函数，然后调用这个函数的 toString 方法，如下：
+JavaScript 函数的 [toString](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/toString) 方法，可以输出一个函数的字符串表示。比如定义一个函数，然后调用这个函数的 toString 方法，如下：
 
 ```JavaScript
     a = _ => console.log(_)
@@ -134,7 +134,7 @@ JavaScript 的函数有一个名为 [toString](https://developer.mozilla.org/en-
     Math.max.toString() // 输出 "function max() { [native code] }"
 ```
 
-并没有输出函数的实现代码，而且输出的字符串 native code 是从哪里来的？这个问题困扰了笔者 3 年，下面，我们一起看下 JavaScript 函数的 toString 方法在 V8 中的实现，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-function.cc#269)
+并没有输出函数的实现代码，而且输出的字符串中 native code 是从哪里来的呢？这个问题困扰了笔者 3 年，下面，我们一起看下 JavaScript 函数的 toString 方法在 V8 中的实现，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-function.cc#269)
 
 ```c++
     // ES6 section 19.2.3.5 Function.prototype.toString ( )
@@ -151,7 +151,7 @@ JavaScript 的函数有一个名为 [toString](https://developer.mozilla.org/en-
     }
 ```
 
-BUILTIN 是 C++ 定义的宏，它会新生成一个类，上面的代码会变成这个新生成的 C++ 类的一个方法。Math.max 是 JSFunction 的实例，receiver->IsJSFunction() 为true，会执行 JSFunction 的 ToString 类方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#5405)
+BUILTIN 是 C++ 定义的宏，C++ 预处理阶段后，上面的代码会变成 C++ 类的一个方法。Math.max 是 JSFunction 的实例，receiver->IsJSFunction() 为true，会执行 JSFunction 的 ToString 类方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#5405)
 
 ```c++
     // static
@@ -166,7 +166,7 @@ BUILTIN 是 C++ 定义的宏，它会新生成一个类，上面的代码会变�
     }
 ```
 
-Math.max 是 V8 内置函数，不是由用户定义的，!shared_info->IsUserJavaScript() 结果是 true，执行 NativeCodeFunctionSourceString。[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#53935)
+Math.max 是 V8 内置函数，不是由用户定义的，!shared_info->IsUserJavaScript() 结果是 true，执行 NativeCodeFunctionSourceString 函数。[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#5393)
 
 ```c++
     Handle<String> NativeCodeFunctionSourceString(
@@ -180,44 +180,48 @@ Math.max 是 V8 内置函数，不是由用户定义的，!shared_info->IsUserJa
     }
 ```
 
-我们终于看到了期待的字符串 native code，从源码来看，Math.max.toString() 输出的字符串 native code 一点也不神秘。
+我们终于看到了期待的字符串 native code：
 
-梳理一下 JavaScript 函数 toString 方法的调用链路：BUILTIN(FunctionPrototypeToString) -> JSFunction::ToString -> NativeCodeFunctionSourceString。可见 JavaScript 函数对应 V8 的 JSFunction的实例，JavaScript 函数的 toString 方法对应 V8 的 JSFunction::ToString 方法。
+```c++
+    builder.AppendCString("() { [native code] }");
+```
 
-JavaScript 函数有 [name](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/name) 属性，比如：
+梳理一下 JavaScript 函数 toString 方法的调用链路：BUILTIN(FunctionPrototypeToString) -> JSFunction::ToString -> NativeCodeFunctionSourceString。可见 JavaScript 函数对应 V8 JSFunction 的实例，JavaScript 函数的 toString 方法对应 V8 的 JSFunction::ToString 方法。
+
+JavaScript 函数的 [name](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/name) 属性，可以获取函数名称，比如：
 
 ```JavaScript
     a = _ => console.log(_)
     a.name // 输出函数名 "a"
 ```
 
-JavaScript 函数的 name 属性的实现，调用了 JSFunction 的 GetName 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#4837)
+JavaScript 函数 name 属性的实现过程中，调用了 JSFunction 的 GetName 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#4837)
 
 ```c++
     // static
     Handle<Object> JSFunction::GetName(Isolate* isolate,
                                    Handle<JSFunction> function) {
-    if (function->shared().name_should_print_as_anonymous()) {
-        return isolate->factory()->anonymous_string();
+        if (function->shared().name_should_print_as_anonymous()) {
+            return isolate->factory()->anonymous_string();
+        }
+        return handle(function->shared().Name(), isolate);
     }
-    return handle(function->shared().Name(), isolate);
-}
 ```
 
-JavaScript 函数有 [length](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/length) 属性，比如：
+JavaScript 函数的 [length](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/length) 属性，可以获取参数个数，比如：
 
 ```JavaScript
     a = _ => console.log(_)
     a.length // 输出 1
 ```
 
-JavaScript 函数的 length 属性的实现，调用了 JSFunction 的 length 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects-inl.h#550)
+JavaScript 函数 length 属性的实现过程中，调用了 JSFunction 的 length 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects-inl.h#550)
 
 ```c++
     int JSFunction::length() { return shared().length(); }
 ```
 
-JavaScript 函数在 V8 中是一个 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。理解了 JavaScript 函数是 C++ 对象，也很容易理解 JavaScript 函数式编程中的一些写法。比如：
+举例佐证到此为止，JavaScript 函数在 V8 中是 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。理解了 JavaScript 函数是 C++ 对象，也很容易理解 JavaScript 函数式编程中的一些写法，比如：
 
 ```JavaScript
     const isNumber = _ => !isNaN(_);
@@ -229,7 +233,7 @@ JavaScript 函数在 V8 中是一个 JSFunction 的实例，既然是 C++ 对象
     isPrice ('123') // 返回 true
 ```
 
-isPrice 校验用户输入的字符串是否是一个价格，Boolean 和 isNumber 都是 V8 中 JSFunction 的实例，那么在 V8 层面看来，[Boolean, isNumber].every 相当于遍历对象数组，并且数组中的每一个对象都最 JSFunction。如果把 every 换成 reduce，稍加改造便可实现类似 Vue 框架的 filter 的功能。
+isPrice 校验用户输入的字符串是否是一个价格，Boolean 和 isNumber 这两个 JavaScript 函数都是 V8 中 JSFunction 的实例，那么在 V8 看来，[Boolean, isNumber].every 相当于遍历数组，并且数组中的每一个对象都最 JSFunction。如果把 every 换成 reduce，稍加改造便可实现类似 Vue 过滤器 filter 的功能。
 
 ```JavaScript
     const add3 = num => num + 3;
@@ -277,11 +281,11 @@ V8 会将 JavaScript 对象编译成 JSObject 的实例，从 JavaScript 层面�
 
 ![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/complex-proto.png)
 
-但从 V8 源码来看 JavaScript 函数是 JSFunction 的实例，JavaScript 对象是 JSObject 的实例，JSObject 是 JSFunction 的父类，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
+从 V8 源码来看 JavaScript 函数是 JSFunction 的实例，JavaScript 对象是 JSObject 的实例，JSObject 是 JSFunction 的父类，所以 JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
 
 ## 总结
 
-C 语言编译器将 C 语言函数编译成了机器码，V8 将 JavaScript 函数编译成 C++ 对象，C++ 对象是 C++ 世界中当之无愧的一等公民，JavaScript 函数当然也是一等公民。
+C 语言编译器把 C 语言函数编译成机器码，V8 把 JavaScript 函数编译成 C++ 对象，C++ 对象是 C++ 世界中当之无愧的一等公民，JavaScript 函数当然也是一等公民。
 
 
 
