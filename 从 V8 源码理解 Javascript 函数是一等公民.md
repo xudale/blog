@@ -128,7 +128,7 @@ JavaScript 的函数有一个名为 [toString](https://developer.mozilla.org/en-
     a.toString() // 输出 "_ => console.log(_)"
 ```
 
-可以获得函数的实现代码，但当对内置对象的方法调用 toSring 时，比如：
+可以获得函数的实现代码，但当对内置对象的方法调用 toString 时，比如：
 
 ```JavaScript
     Math.max.toString() // 输出 "function max() { [native code] }"
@@ -151,7 +151,7 @@ JavaScript 的函数有一个名为 [toString](https://developer.mozilla.org/en-
     }
 ```
 
-BUILTIN 是 C++ 定义的宏，它会新生成一个类，上面的代码会变成这个新生成的 C++ 类的一个方法，具体细节后面再看。Math.max 是 JSFunction 的实例，receiver->IsJSFunction() 为true，会执行 JSFunction 的 ToString 类方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#5405)
+BUILTIN 是 C++ 定义的宏，它会新生成一个类，上面的代码会变成这个新生成的 C++ 类的一个方法。Math.max 是 JSFunction 的实例，receiver->IsJSFunction() 为true，会执行 JSFunction 的 ToString 类方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#5405)
 
 ```c++
     // static
@@ -217,7 +217,30 @@ JavaScript 函数的 length 属性的实现，调用了 JSFunction 的 length �
     int JSFunction::length() { return shared().length(); }
 ```
 
-在 JavaScript 语言中函数是一等公民，从 V8 源码的角度来理解，JavaScript 函数在 V8 中是一个 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。
+JavaScript 函数在 V8 中是一个 JSFunction 的实例，既然是 C++ 对象，JavaScript 函数当然可以做为参数传递给其它函数，也可以做为函数的返回值。理解了 JavaScript 函数是 C++ 对象，也很容易理解 JavaScript 函数式编程中的一些写法。比如：
+
+```JavaScript
+    const isNumber = _ => !isNaN(_);
+    function isPrice (price) {
+        return [Boolean, isNumber].every(fn => {
+            return fn(price)
+        })
+    }
+    isPrice ('123') // 返回 true
+```
+
+isPrice 校验用户输入的字符串是否是一个价格，Boolean 和 isNumber 都是 V8 中 JSFunction 的实例，那么在 V8 层面看来，[Boolean, isNumber].every 相当于遍历对象数组，并且数组中的每一个对象都最 JSFunction。如果把 every 换成 reduce，稍加改造便可实现类似 Vue 框架的 filter 的功能。
+
+```JavaScript
+    const add3 = num => num + 3;
+    const mul2 = num => num * 2;
+    function numberReduce (num) {
+        return [add3, mul2].reduce((acc, fn) => {
+            return fn(acc)
+        }, num)
+    }
+    numberReduce(3) // 返回 (3 + 3) * 2 = 12
+```
 
 在 V8 中 JSFunction 继承自 JSObject，如下：
 
@@ -228,7 +251,7 @@ JavaScript 函数的 length 属性的实现，调用了 JSFunction 的 length �
     }
 ```
 
-JSObject 的[定义如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#274)
+JSObject 的[声明如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#274)
 
 ```c++
     // The JSObject describes real heap allocated JavaScript objects with
@@ -250,11 +273,11 @@ JSObject 的[定义如下：](https://chromium.googlesource.com/v8/v8.git/+/refs
     }
 ```
 
-在 JavaScript 层面看来，函数（Function）和对象（Object）的关系是你中有我，我中有你，互相依偎，唇齿相依，如下图：
+V8 会将 JavaScript 对象编译成 JSObject 的实例，从 JavaScript 层面看来，函数（Function）和对象（Object）的关系是你中有我，我中有你，互相依偎，唇齿相依，如下图：
 
 ![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/complex-proto.png)
 
-但从 V8 源码来看 JavaScript 函数是 JSFunction 的实例，对象是 JSObject 的实例，JSObject 是 JSFunction 的父类，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
+但从 V8 源码来看 JavaScript 函数是 JSFunction 的实例，JavaScript 对象是 JSObject 的实例，JSObject 是 JSFunction 的父类，JavaScript 函数具备 JavaScript 对象拥有的绝大部分功能，对象能做的事情，函数也可以做，从这个角度也可以理解 JavaScript 的函数是一等公民。
 
 ## 总结
 
