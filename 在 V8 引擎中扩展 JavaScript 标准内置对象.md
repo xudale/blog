@@ -1,7 +1,15 @@
 # 在 V8 引擎中扩展 JavaScript 标准内置对象
 ## 摘要
-JavaScript 标准内置对象，如 Math、Array 和 Promise 等是每一个前端程序员日常工作的基础，这些内置对象在 JavaScript 层面上是函数或者对象。首先，本文会从底层的角度对比一下 C 语言的函数和 JavaScript 语言函数的区别；然后，举例说明如何在 V8 中为 JavaScript 的 Math 对象添加一个名为 times10 的方法，并分析相关源码。
-## 函数的底层表示
+本文会以在 Math 对象上添加一个新方法为例，介绍如何在 V8 引擎中扩展 JavaScript 对象，并分析相关源码。
+## 为 Math 对象添加 times10 方法
+在 V8 中为 Math 对象添加 times10 方法，times10 方法的作用是将入参乘 10 后返回。可分为 3 步：
+
+- 实现 times10 方法的功能；
+- 生成 Code 对象；
+- 为 Math 对象添加 times10 属性；
+
+### 定义
+
 ### C 语言函数的底层表示
 
 
