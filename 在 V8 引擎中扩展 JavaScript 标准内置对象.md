@@ -52,7 +52,31 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
 
 ### 为 Math 对象添加 times10 属性
 
-### C 语言函数的底层表示
+在[src/init/bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705)文件中的[Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#1386) Math 对象相关，增加一行
+
+```c++
+SimpleInstallFunction(isolate_, math, "exp", Builtins::kMathExp, 1, true);
+Handle<JSFunction> math_floor = SimpleInstallFunction(
+  isolate_, math, "floor", Builtins::kMathFloor, 1, true);
+native_context()->set_math_floor(*math_floor);
+// 下面一行为新增
+SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true);
+```
+
+一共修改了 3 处代码，编译 V8，运行 D8：
+
+```c++
+./tools/dev/gm.py x64.debug
+./out/x64.debug/d8
+```
+
+结果如下：
+
+![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/times10.png)
+
+## 源码分析
+
+
 
 
 
