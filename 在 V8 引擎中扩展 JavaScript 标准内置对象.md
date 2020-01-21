@@ -162,3 +162,93 @@ void MathImulAssembler::GenerateMathImulImpl() {
 
 可见 [TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29)宏最终会把实现代码扩展成一个 C++ 类，V8 有很多奇技淫巧，上面只是入门级的。
 
+### 生成 Code 对象
+
+上文中，我们在 [src/builtins/builtins-definitions.h](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#34) 的宏 BUILTIN_LIST_BASE 下，新增一行：
+
+```c++
+#define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)      \
+  /* GC write barrirer */                                    \
+  // 前面源码太长，略                                           
+  TFJ(MathTimes10, 1, kReceiver, kX)                         \
+  // 后面源码太长，略
+```
+
+在 V8 源码中全局搜索 BUILTIN_LIST_BASE，发现 [BUILTIN_LIST](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#1321)，有调用 BUILTIN_LIST_BASE。
+
+```c++
+#define BUILTIN_LIST(CPP, TFJ, TFC, TFS, TFH, BCH, ASM)  \
+  BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)        \
+  // 专注重点，后面略
+```
+
+在 V8 源码中全局搜索 BUILTIN_LIST，发现 [SetupIsolateDelegate::SetupBuiltinsInternal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/setup-builtins-internal.cc#286)有调用 BUILTIN_LIST
+
+```c++
+void SetupIsolateDelegate::SetupBuiltinsInternal(Isolate* isolate) {
+  Builtins* builtins = isolate->builtins();
+  int index = 0;
+  Code code;
+// 源码太长，前面略
+#define BUILD_TFJ(Name, Argc, ...)                              \
+  code = BuildWithCodeStubAssemblerJS(                          \
+      isolate, index, &Builtins::Generate_##Name, Argc, #Name); \
+  AddBuiltin(builtins, index++, code);
+// 源码太长，中间略
+  BUILTIN_LIST(BUILD_CPP, BUILD_TFJ, BUILD_TFC, BUILD_TFS, BUILD_TFH, BUILD_BCH, BUILD_ASM);
+// 源码太长，后面略 
+}
+```
+
+这种宏嵌套宏，并且不同的宏定义相隔甚选的写法，笔者是第一次见，当初耗费很长时间才看懂这段代码。其实，SetupIsolateDelegate::SetupBuiltinsInternal 主要做了两件事情：获取 Code 对象，将 Code 对象存入 builtins 数组。
+
+获取 Code 对象的代码宏扩展展开后：
+
+```c++
+code = BuildWithCodeStubAssemblerJS(                          
+      isolate, index, &Builtins::Generate_MathTimes10, Argc, "MathTimes10"); 
+```
+
+将 Code 对象存入 builtins 数组：
+
+```c++
+  AddBuiltin(builtins, index++, code); 
+```
+
+顺着 AddBuiltin 的源码一直追下去，发现所有的 Code 对象都存在 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162)中。
+
+```c++
+Address builtins_[Builtins::builtin_count] = {};
+```
+
+让我们看宏 [BUILTIN_LIST](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins.h#49) 的另一处调用：
+
+```c++
+class Builtins {
+  public:
+  // 源码太长，前面略
+  enum Name : int32_t {
+#define DEF_ENUM(Name, ...) k##Name,
+    BUILTIN_LIST(DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM,
+                 DEF_ENUM)
+#undef DEF_ENUM
+        builtin_count
+  };
+  // 源码太长，后面略
+}
+```
+
+### 为 Math 对象添加 times10 属性
+
+这一步代码最简单，实际只有一行：
+
+```c++
+SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true);
+```
+
+参数 math 实际上就是 JavaScript 的 Math 对象，参数 "times10" 是我们要添加的方法的名字，Builtins::kMathTimes10 是方法的索引，至此，大功告成。
+
+
+
+
+
