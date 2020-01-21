@@ -76,10 +76,89 @@ SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true
 
 ## 源码分析
 
+### 实现 times10 方法的功能
 
+首先回顾一下实现代码：
 
+```c++
+// ES6 #sec-math.imul
+TF_BUILTIN(MathImul, CodeStubAssembler) {
+  Node* context = Parameter(Descriptor::kContext);
+  Node* x = Parameter(Descriptor::kX);
+  Node* y = Parameter(Descriptor::kY);
+  Node* x_value = TruncateTaggedToWord32(context, x);
+  Node* y_value = TruncateTaggedToWord32(context, y);
+  Node* value = Int32Mul(x_value, y_value);
+  Node* result = ChangeInt32ToTagged(value);
+  Return(result);
+}
+```
 
+[TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29)是 C++ 定义的宏，源码如下：
 
+```c++
+#define TF_BUILTIN(Name, AssemblerBase)                                 \
+  class Name##Assembler : public AssemblerBase {                        \
+   public:                                                              \
+    using Descriptor = Builtin_##Name##_InterfaceDescriptor;            \
+                                                                        \
+    explicit Name##Assembler(compiler::CodeAssemblerState* state)       \
+        : AssemblerBase(state) {}                                       \
+    void Generate##Name##Impl();                                        \
+                                                                        \
+    Node* Parameter(Descriptor::ParameterIndices index) {               \
+      return CodeAssembler::Parameter(static_cast<int>(index));         \
+    }                                                                   \
+  };                                                                    \
+  void Builtins::Generate_##Name(compiler::CodeAssemblerState* state) { \
+    Name##Assembler assembler(state);                                   \
+    state->SetInitialDebugInformation(#Name, __FILE__, __LINE__);       \
+    if (Builtins::KindOf(Builtins::k##Name) == Builtins::TFJ) {         \
+      assembler.PerformStackCheck(assembler.GetJSContextParameter());   \
+    }                                                                   \
+    assembler.Generate##Name##Impl();                                   \
+  }                                                                     \
+  void Name##Assembler::Generate##Name##Impl()
+```
 
+将上两段代码放在一个文件中，使用 g++ 宏扩展命令：
 
+```c++
+g++ xxxx.cpp -E xxxx.out
+```
+
+得到生成后的文件如下：
+
+```c++
+class MathImulAssembler : public CodeStubAssembler { 
+  public: 
+    using Descriptor = Builtin_MathImul_InterfaceDescriptor;
+    explicit MathImulAssembler(compiler::CodeAssemblerState* state) 
+      : CodeStubAssembler(state) {} 
+  void GenerateMathImulImpl(); 
+  Node* Parameter(Descriptor::ParameterIndices index) { 
+    return CodeAssembler::Parameter(static_cast<int>(index)); 
+  } 
+}; 
+void Builtins::Generate_MathImul(compiler::CodeAssemblerState* state) { 
+  MathImulAssembler assembler(state); 
+  state->SetInitialDebugInformation("MathImul", "macro.cpp", 25); 
+  if (Builtins::KindOf(Builtins::kMathImul) == Builtins::TFJ) { 
+    assembler.PerformStackCheck(assembler.GetJSContextParameter()); 
+  } 
+  assembler.GenerateMathImulImpl(); 
+} 
+void MathImulAssembler::GenerateMathImulImpl() {
+  Node* context = Parameter(Descriptor::kContext);
+  Node* x = Parameter(Descriptor::kX);
+  Node* y = Parameter(Descriptor::kY);
+  Node* x_value = TruncateTaggedToWord32(context, x);
+  Node* y_value = TruncateTaggedToWord32(context, y);
+  Node* value = Int32Mul(x_value, y_value);
+  Node* result = ChangeInt32ToTagged(value);
+  Return(result);
+}
+```
+
+可见 [TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29)宏最终会把实现代码扩展成一个 C++ 类，V8 有很多奇技淫巧，上面只是入门级的。
 
