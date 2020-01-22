@@ -279,6 +279,8 @@ class Builtins {
 }
 ```
 
+![generateCode](https://raw.githubusercontent.com/xudale/blog/master/assets/generateCode.png)
+
 ### 为 Math 对象添加 times10 属性
 
 这一步代码最简单，实际只有一行：
@@ -287,7 +289,9 @@ class Builtins {
 SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true);
 ```
 
-参数 math 实际上就是 JavaScript 的 Math 对象，参数 "times10" 是我们要添加的方法的名字，Builtins::kMathTimes10 是方法的索引，至此，大功告成。
+参数 math 实际上就是 JavaScript 的 Math 对象，参数 "times10" 是我们要添加的方法的名字，Builtins::kMathTimes10 是方法的索引，至此，大功告成。本节内容总结如下图：
+
+![getCode](https://raw.githubusercontent.com/xudale/blog/master/assets/getCode.png)
 
 ## 一些感想
 
