@@ -10,14 +10,14 @@ times10 方法的逻辑很简单，就是将入参乘 10 后返回。在 V8 源�
 
 ### 实现 times10 方法的功能
 
-这里参考[CodeStubAssembler builtins](https://v8.dev/docs/csa-builtins)，仿照 [Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 方法，在[src/builtins/builtins-math-gen.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-math-gen.cc#179)文件内定义如下：
+很多人都说 V8 是用 C++ 写的，其实不然。本文使用 V8 内部的编程语言 [CodeStubAssembler builtins](https://v8.dev/docs/csa-builtins)来实现 times10 函数的功能。与 C++ 相比，CodeStubAssembler 运行效率更高，而且语法接近汇编。虽然网络上关于 CodeStubAssembler 的教程极少，但是 times10 的逻辑十分简单，参考 V8 中 [Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 的 [源码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-math-gen.cc#179)：
 
 ```c++
 // ES6 #sec-math.imul
 TF_BUILTIN(MathImul, CodeStubAssembler) {
   Node* context = Parameter(Descriptor::kContext);
-  Node* x = Parameter(Descriptor::kX);
-  Node* y = Parameter(Descriptor::kY);
+  Node* x = Parameter(Descriptor::kX); // 取出第一个参数 x
+  Node* y = Parameter(Descriptor::kY); // 取出第二个参数 y
   Node* x_value = TruncateTaggedToWord32(context, x);
   Node* y_value = TruncateTaggedToWord32(context, y);
   Node* value = Int32Mul(x_value, y_value);
@@ -25,6 +25,12 @@ TF_BUILTIN(MathImul, CodeStubAssembler) {
   Return(result);
 }
 ```
+
+笔者对 CodeStubAssembler 的语法并不熟悉，至少从以上源码来看，CodeStubAssembler 的语法接近汇编，同时也是合法的 C++ 代码。[Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 的实现逻辑很简单：取出两个参数 x和y，
+
+仿照 [Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 的实现逻辑很简单：取出两个参数 x，y，这里参考[CodeStubAssembler builtins](https://v8.dev/docs/csa-builtins)，仿照 [Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 方法，在[src/builtins/builtins-math-gen.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-math-gen.cc#179)文件内定义如下：
+
+
 
 ```c++
 TF_BUILTIN(MathTimes10, CodeStubAssembler) {
