@@ -1,12 +1,12 @@
 # 在 V8 引擎中扩展 JavaScript 标准内置对象
 ## 摘要
-本文会以在 Math 对象上添加一个新方法为例，介绍如何在 V8 引擎中扩展 JavaScript 对象，并分析相关源码。
+本文会以在 Math 对象上添加一个新方法 times10 为例，介绍如何在 V8 引擎中扩展 JavaScript 对象，并分析相关源码。
 ## 为 Math 对象添加 times10 方法
-在 V8 中为 Math 对象添加 times10 方法，times10 方法的作用是将入参乘 10 后返回。可分为 3 步：
+times10 方法的逻辑很简单，就是将入参乘 10 后返回。在 V8 源码中为 Math 对象添加 times10 方法，可分为 3 步：
 
 - 实现 times10 方法的功能；
-- 生成 Code 对象；
-- 为 Math 对象添加 times10 属性；
+- 生成并存储 Code 对象；
+- 取出上一步生成的 Code 对象，添加至 Math 对象的 times10 属性上；
 
 ### 实现 times10 方法的功能
 
@@ -366,6 +366,12 @@ SimpleInstallFunction(isolate_, proto, "join",
 从上面的代码，还可以看到 JavaScript 做为一门动态语言的所具有的特点。比如 JavaScript Array 原型上的 concat、pop、push等方法，方法的名字做为一个字符串，客观的存在于 V8 中。如果运行时想要使用 pop 方法，只要JavaScript Array 原型上有一个名为 pop 的方法就可以，pop 方法可以由 V8 提供，也可以由第 3 方提供。总之，只要该方法挂载在JavaScript Array 原型上，并且名称为 pop 就可以。这种特性为 JavaScript 运行时的动态加载提供了基础。
 
 而静态类型语言，如 C 语言。C 语言的变量和函数在编译后都直接对应地址，变量名和函数名在编译后都不复存在，这里可以参考笔者的另一篇文章[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。通常，静态语言都没有类似 JavaScript 动态加载的特性。
+
+### 关于定制化 V8
+
+V8 最诞生最初只应用于浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap 里面的很多代码都可以删除，比如：
+
+![delete](https://raw.githubusercontent.com/xudale/blog/master/assets/delete.png)
 
 ## 参考文献
 
