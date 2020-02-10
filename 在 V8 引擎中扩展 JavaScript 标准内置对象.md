@@ -328,7 +328,25 @@ Address builtins_[Builtins::builtin_count] = {};
 SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true);
 ```
 
-参数 math 实际上就是 JavaScript 的 Math 对象，参数 "times10" 是我们要添加的方法的名字，Builtins::kMathTimes10 是方法的索引，至此，大功告成。本节内容总结如下图：
+math 就是 JavaScript 的 math 对象，Builtins::kMathTimes10 是上一节生成的索引，通过索引可以从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中找到 times10 对应的 Code 对象。[SimpleInstallFunction](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#463) 的源码如下：
+
+```c++
+V8_NOINLINE Handle<JSFunction> SimpleInstallFunction(
+    Isolate* isolate, Handle<JSObject> base, const char* name,
+    Builtins::Name call, int len, bool adapt,
+    PropertyAttributes attrs = DONT_ENUM) {
+  // Although function name does not have to be internalized the property name
+  // will be internalized during property addition anyway, so do it here now.
+  Handle<String> internalized_name =
+      isolate->factory()->InternalizeUtf8String(name);
+  Handle<JSFunction> fun =
+      SimpleCreateFunction(isolate, internalized_name, call, len, adapt); // 获取函数
+  JSObject::AddProperty(isolate, base, internalized_name, fun, attrs); // 添加属性
+  return fun;
+}
+```
+
+实际调用链路很长，本节内容总结如下图：
 
 ![getCode](https://raw.githubusercontent.com/xudale/blog/master/assets/getCode.png)
 
