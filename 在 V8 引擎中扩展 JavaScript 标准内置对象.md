@@ -2,7 +2,7 @@
 ## 摘要
 本文会以在 Math 对象上添加一个新方法 times10 为例，介绍如何在 V8 引擎中扩展 JavaScript 对象，并分析相关源码。
 ## 为 Math 对象添加 times10 方法
-times10 方法的逻辑很简单，就是将入参乘 10 后返回。在 V8 源码中为 Math 对象添加 times10 方法，可分为 3 步：
+times10 方法的逻辑很简单，就是将入参乘 10 后返回。在 V8 源码中为 Math 对象添加 times10 方法，分 3 步：
 
 - 实现 times10 方法的功能；
 - 生成并存储 Code 对象；
@@ -10,7 +10,7 @@ times10 方法的逻辑很简单，就是将入参乘 10 后返回。在 V8 源�
 
 ### 实现 times10 方法的功能
 
-很多人都说 V8 是用 C++ 写的，其实不然。本文使用 V8 内部的编程语言 [CodeStubAssembler builtins](https://v8.dev/docs/csa-builtins) 来实现 times10 函数的功能。与 C++ 相比，CodeStubAssembler 运行效率更高，而且语法接近汇编。虽然网络上关于 CodeStubAssembler 的教程极少，但是 times10 的逻辑十分简单，参考 V8 中 [Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 的 [源码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-math-gen.cc#179)：
+很多文章说 V8 是用 C++ 写的，其实不然。本文使用 V8 内部的编程语言 [CodeStubAssembler builtins](https://v8.dev/docs/csa-builtins) 来实现 times10 函数的功能。与 C++ 相比，CodeStubAssembler 运行效率更高，而且语法接近汇编。虽然网络上关于 CodeStubAssembler 的教程极少，但是 times10 的逻辑十分简单，参考 V8 中 [Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 的 [源码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-math-gen.cc#179)：
 
 ```c++
 // ES6 #sec-math.imul
@@ -56,7 +56,7 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
 
 ### 取出上一步生成的 Code 对象，添加至 Math 对象的 times10 属性上
 
-在 [src/init/bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705) 文件中的 [Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#1386) 方法，找到初始化 Javascript Math 对象的代码，参考邻近代码，增加一行：
+在 src/init/bootstrapper.cc 文件中的 [Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#1386) 方法，找到初始化 Javascript Math 对象的[代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705)，参考邻近代码，增加一行：
 
 ```c++
 SimpleInstallFunction(isolate_, math, "exp", Builtins::kMathExp, 1, true);
@@ -64,9 +64,10 @@ SimpleInstallFunction(isolate_, math, "exp", Builtins::kMathExp, 1, true);
 SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true);
 ```
 
+至此，全部代码修改完毕。
 ### 编译运行 V8
 
-一共修改了 3 处代码，编译 V8：
+编译 V8：
 
 ```c++
 ./tools/dev/gm.py x64.debug
@@ -127,7 +128,7 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
   void Name##Assembler::Generate##Name##Impl()
 ```
 
-将上两段代码放在一个文件中，使用 g++ 宏扩展命令：
+将以上两段代码放在一个文件中，使用 g++ 宏扩展命令：
 
 ```c++
 g++ -E file_name.cpp > file_name.i
@@ -171,7 +172,7 @@ void MathTimes10Assembler::GenerateMathTimes10Impl() {
 
 ### 生成并存储 Code 对象
 
-本部分源码只改动增加一行：
+本部分只增加一行代码 TFJ(MathTimes10, 1, kReceiver, kX)：
 
 ```c++
 #define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)    \
@@ -184,14 +185,14 @@ void MathTimes10Assembler::GenerateMathTimes10Impl() {
 - 生成 Code 对象；
 - 存储 Code 对象；
 
-首先简要介绍下 V8 中的 Code 类
+首先简要介绍下 V8 中的 Code 类。
 #### Code 类简介
 Code 是 V8 中的一个类，用于描述可执行代码。每个 JavaScript 函数在 V8 中都有一个与之关联的 Code 对象，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
 
 ```c++
 class JSFunction : public JSObject {
  public:
-  // 源码在长，略
+  // 源码太长，略
   // [code]: The generated code object for this function.  Executed
   // when the function is invoked, e.g. foo() or new foo(). See
   inline Code code() const; // 这个就是本节要介绍的 Code
@@ -202,7 +203,7 @@ class JSFunction : public JSObject {
 }
 ```
 
-JSFunction 对应 JavaScript 的函数，JSObject 对应 JavaScript 的对象。JSFunction 继承自 JSObject，并增加了 code 和 set_code 等与可执行代码相关的字段或方法，JSObject 并没有可执行代码相关的字段，这一点与我们使用 JavaScript 的体验是一致的。在 V8 源码中 JavaScript 函数与对象的关系，可参考[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。
+JSFunction 对应 JavaScript 的函数，JSObject 对应 JavaScript 的对象。JSFunction 继承自 JSObject，并增加了 code 和 set_code 等与可执行代码相关的字段或方法，JSObject 并没有可执行代码相关的字段，这一点与我们使用 JavaScript 的体验是一致的。在 V8 源码中 JavaScript 函数与对象的关系，可参考笔者的另外一篇文章[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。
 
 Code 对象[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/code.h#31)
 
@@ -225,7 +226,7 @@ class Code : public HeapObject {
 }
 ```
 
-从 Code 的声明来看，Code 是描述可执行代码的类。
+从 Code 的声明和相关注释来看，Code 是描述可执行代码的类。
 
 #### 生成索引 Builtins::kMathTimes10
 
@@ -244,7 +245,7 @@ class Code : public HeapObject {
   // 专注重点，后面略
 ```
 
-源码中全局搜索 BUILTIN_LIST，可以搜到多个结果，其中 [Builtins](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins.h#47) 调用了宏 BUILTIN_LIST：
+源码中全局搜索 BUILTIN_LIST，可以搜到多个结果，其中类 [Builtins](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins.h#47) 的声明代码中，调用了宏 BUILTIN_LIST：
 
 ```c++
 class Builtins {
@@ -291,14 +292,14 @@ void SetupIsolateDelegate::SetupBuiltinsInternal(Isolate* isolate) {
 }
 ```
 
-这时宏 BUILTIN_LIST_BASE 的所有参数都是 宏 BUILD_TFJ，宏 BUILD_TFJ 的第一个作用是获取了 Code 对象，宏替换后代码如下：
+宏替换后，生成 Code 对象的代码如下：
 
 ```c++
 code = BuildWithCodeStubAssemblerJS(                          
       isolate, index, &Builtins::Generate_MathTimes10, Argc, "MathTimes10"); 
 ```
 
-其中 Builtins::Generate_MathTimes10 是上文提到的，在实现 times10 功能的时候，在宏 TF_BUILTIN 的作用下，我们为类 Builtins 添加的新方法，它生成了 Code 对象。
+其中 Builtins::Generate_MathTimes10 是上文提到的，实现 times10 功能的时候，在宏 TF_BUILTIN 的作用下，我们为类 Builtins 添加的新方法。
 
 #### 存储 Code 对象
 
@@ -316,13 +317,13 @@ Address builtins_[Builtins::builtin_count] = {};
 
 梳理本节代码调用链路：SetupIsolateDelegate::SetupBuiltinsInternal -> 宏 BUILTIN_LIST -> 宏 BUILTIN_LIST_BASE，其中宏 BUILTIN_LIST_BASE 中的形参 TFJ，接收到的实际参数是宏 BUILD_TFJ。
 
-宏定义嵌套宏定义，还时不时传个参数的写法，在 V8 源码中经常出现。这种写法既难读又难解释，下图为目前为止本文内容的缩略版：
+宏定义嵌套宏定义，并且偶尔传个参数的写法，在 V8 源码中经常出现。这种写法既难读又难解释，下图为目前为止本文内容的缩略版：
 
 ![generateCode](https://raw.githubusercontent.com/xudale/blog/master/assets/generateCode.png)
 
-### 为 Math 对象添加 times10 属性
+### 取出上一步生成的 Code 对象，添加至 Math 对象的 times10 属性上
 
-这一步代码最简单，实际只有一行：
+这一步代码最简单，在 [bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705) 文件中，math 函数相关的部分，添加一行：
 
 ```c++
 SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true);
@@ -354,11 +355,11 @@ SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](http
 
 ### V8 还是比较安全的
 
-从内置函数相关的源码看下来，攻击 V8 定义的 Javascript 标准内置函数还是很难的。如果要攻击，首先要绕过词法分析、语法分析和 AST 树 3 座大山，V8 的内置函数都存在数组 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162)中，但这个数组离 JavaScript 层面实在太远了，很难攻击。
+从内置函数相关的源码看下来，攻击 V8 定义的 Javascript 标准内置函数还是很难的。如果要攻击，首先要绕过词法分析、语法分析和 AST 树 3 座大山，走过这一步本身就很有难度。V8 的内置函数都存在数组 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162)中，但这个数组离 JavaScript 层面实在太远了，很难攻击篡改。
 
 ### 谈谈 Bootstrap 
 
-在芯片或嵌入式领域，Bootstrap 有启动程序和引导程序的含义。这里谈的 [Bootstrap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc) 是 V8 里的一个文件。之所文章最后提一下这个文件，是因为这个文件注册了所有 JavaScript 标准所规定的函数，和前端的关系最为密切，因为某些原因，上面的链接可能打不开，笔者索性就粘贴一段 Bootstrap 文件中的数组相关的代码：
+在芯片或嵌入式领域，Bootstrap 有启动程序和引导程序的含义。这里谈的 [Bootstrap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc) 是 V8 里的一个文件。之所以在文章最后提一下这个文件，是因为这个文件注册了所有 JavaScript 标准所规定的函数，和前端的关系最为密切，因为某些原因，上面的链接可能打不开，笔者索性就粘贴一段 Bootstrap 文件中数组相关的代码：
 
 ```c++
 // Set up %ArrayPrototype%.
@@ -418,15 +419,15 @@ SimpleInstallFunction(isolate_, proto, "join",
                       Builtins::kArrayPrototypeJoin, 1, false);
 ```
 
-上面的代码先是设置了为 array_function(对应 JavaScript Array) 添加了 proto(对应 Array 的 Prototype)，然后为 array_function 添加了 from、of 等静态方法，最后为 proto 添加了 concat、pop、push 等原型链方法。
+上面的代码先是为 array_function(对应 JavaScript Array) 添加了 proto(对应 Array 的 Prototype)，然后为 array_function 添加了 from、of 等静态方法，最后为 proto 添加了 concat、pop、push 和 join 等数组原型链方法。
 
-从上面的代码，还可以看到 JavaScript 做为一门动态语言的所具有的特点。比如 JavaScript Array 原型上的 concat、pop、push 等方法，方法的名字做为一个字符串，客观的存在于 V8 中。如果运行时想要使用 pop 方法，只要 JavaScript Array 原型上有一个名为 pop 的方法就可以，pop 方法可以由 V8 提供，也可以由第 3 方提供。总之，只要该方法挂载在 JavaScript Array 原型上，并且名称为 pop 就可以。这种特性为 JavaScript 运行时的动态加载提供了基础。
+从上面的代码，还可以看到 JavaScript 做为一门动态语言所具有的特点。比如 JavaScript Array 原型上的 concat、pop、push 等方法，方法的名字做为一个字符串，客观的存在于 V8 中。如果运行时想要使用 pop 方法，只要 JavaScript Array 原型上有一个名为 pop 的方法就可以，pop 方法可以由 V8 提供，也可以由第 3 方提供。总之，只要该方法挂载在 JavaScript Array 原型上，并且名称为 pop 就可以。这种特性为 JavaScript 运行时的动态加载提供了基础。
 
-而静态类型语言，如 C 语言。C 语言的变量和函数在编译后都直接对应地址，变量名和函数名在编译后都不复存在，这里可以参考[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。通常，静态语言都没有类似 JavaScript 动态加载的特性。
+而静态类型语言，如 C 语言。C 语言的变量和函数在编译后都直接对应地址，变量名和函数名在编译后都不复存在，这里可以参考文章[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。通常，静态语言都没有类似 JavaScript 动态加载的特性。
 
 ### 关于定制化 V8
 
-V8 最初只应用于 Chrome 浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap 里面的很多代码都可以删除，比如下图中有大拇指标记的部分，这部分 API 由于浏览器兼容性的原因，虽然日常开发中早已不再使用，但 V8 源码中继续存在。如果有一天需要在服务端定制 V8，根据本文介绍的内容，顺藤摸瓜，可以从 V8 源码中彻底删除函数定义、生成索引和获取 Code 对象等代码，以便减少运行时 V8 实例的体积。
+V8 最初只应用于 Chrome 浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap 文件里面的很多代码都可以删除，比如下图中有大拇指标记的部分，这部分 API 由于浏览器兼容性的原因，虽然日常开发中早已不再使用，但 V8 源码中继续存在。如果有一天需要在服务端定制 V8，根据本文介绍的内容，顺藤摸瓜，可以从 V8 源码中彻底删除函数定义、生成和获取 Code 对象相关的代码，以便减少运行时 V8 实例的体积。
 
 ![delete](https://raw.githubusercontent.com/xudale/blog/master/assets/delete.png)
 
@@ -435,6 +436,8 @@ V8 最初只应用于 Chrome 浏览器，有很多兼容性的包袱。如果在
 [CodeStubAssembler builtins](https://v8.dev/docs/csa-builtins)
 
 [Taming architecture complexity in V8 — the CodeStubAssembler](https://v8.dev/blog/csa)
+
+[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)
 
 
 
