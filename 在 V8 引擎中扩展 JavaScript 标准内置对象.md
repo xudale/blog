@@ -346,7 +346,7 @@ V8_NOINLINE Handle<JSFunction> SimpleInstallFunction(
 }
 ```
 
-实际调用链路很长，本节内容总结如下图：
+SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中找到对应的 Code 对象，生成一个新的 JSFunction 的实例，本节内容总结如下图：
 
 ![getCode](https://raw.githubusercontent.com/xudale/blog/master/assets/getCode.png)
 
@@ -354,7 +354,7 @@ V8_NOINLINE Handle<JSFunction> SimpleInstallFunction(
 
 ### V8 还是比较安全的
 
-笔者是正经人，从未想过攻击哪个网站。从内置函数相关的源码看下来，攻击 V8 还是很难的。如果攻击 V8，首先要绕过词法分析、语法分析和 AST 树 3 座大山，V8 的内置函数都存在数组 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162)中，但这个数组离 JavaScript 层面实在太远了，笔者认为很难在 JavaScript 层面改变这个数组。
+从内置函数相关的源码看下来，攻击 V8 定义的 Javascript 标准内置函数还是很难的。如果要攻击，首先要绕过词法分析、语法分析和 AST 树 3 座大山，V8 的内置函数都存在数组 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162)中，但这个数组离 JavaScript 层面实在太远了，很难攻击。
 
 ### 谈谈 Bootstrap 
 
@@ -418,15 +418,15 @@ SimpleInstallFunction(isolate_, proto, "join",
                       Builtins::kArrayPrototypeJoin, 1, false);
 ```
 
-上面的代码先是设置了 JavaScript Array 的 Prototype，然后为 JavaScript Array 添加了 from、of 静态方法，最后为 JavaScript Array 的 Prototype 添加了 concat、pop、push 等方法。
+上面的代码先是设置了为 array_function(对应 JavaScript Array) 添加了 proto(对应 Array 的 Prototype)，然后为 array_function 添加了 from、of 等静态方法，最后为 proto 添加了 concat、pop、push 等原型链方法。
 
-从上面的代码，还可以看到 JavaScript 做为一门动态语言的所具有的特点。比如 JavaScript Array 原型上的 concat、pop、push等方法，方法的名字做为一个字符串，客观的存在于 V8 中。如果运行时想要使用 pop 方法，只要JavaScript Array 原型上有一个名为 pop 的方法就可以，pop 方法可以由 V8 提供，也可以由第 3 方提供。总之，只要该方法挂载在JavaScript Array 原型上，并且名称为 pop 就可以。这种特性为 JavaScript 运行时的动态加载提供了基础。
+从上面的代码，还可以看到 JavaScript 做为一门动态语言的所具有的特点。比如 JavaScript Array 原型上的 concat、pop、push 等方法，方法的名字做为一个字符串，客观的存在于 V8 中。如果运行时想要使用 pop 方法，只要 JavaScript Array 原型上有一个名为 pop 的方法就可以，pop 方法可以由 V8 提供，也可以由第 3 方提供。总之，只要该方法挂载在 JavaScript Array 原型上，并且名称为 pop 就可以。这种特性为 JavaScript 运行时的动态加载提供了基础。
 
-而静态类型语言，如 C 语言。C 语言的变量和函数在编译后都直接对应地址，变量名和函数名在编译后都不复存在，这里可以参考笔者的另一篇文章[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。通常，静态语言都没有类似 JavaScript 动态加载的特性。
+而静态类型语言，如 C 语言。C 语言的变量和函数在编译后都直接对应地址，变量名和函数名在编译后都不复存在，这里可以参考[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。通常，静态语言都没有类似 JavaScript 动态加载的特性。
 
 ### 关于定制化 V8
 
-V8 最初只应用于浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap 里面的很多代码都可以删除，比如下图中有大拇指标记的部分，这部分 API 由于浏览器兼容性的原因，在 V8 源码中继续存在。如果 V8 只运行在服务端，这部分源码可以删除，以便减少运行时 V8 实例的体积。
+V8 最初只应用于 Chrome 浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap 里面的很多代码都可以删除，比如下图中有大拇指标记的部分，这部分 API 由于浏览器兼容性的原因，虽然日常开发中早已不再使用，但 V8 源码中继续存在。如果有一天需要在服务端定制 V8，根据本文介绍的内容，顺藤摸瓜，可以从 V8 源码中彻底删除函数定义、生成索引和获取 Code 对象等代码，以便减少运行时 V8 实例的体积。
 
 ![delete](https://raw.githubusercontent.com/xudale/blog/master/assets/delete.png)
 
