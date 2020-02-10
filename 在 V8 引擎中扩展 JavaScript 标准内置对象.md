@@ -171,14 +171,11 @@ void MathTimes10Assembler::GenerateMathTimes10Impl() {
 
 ### 生成并存储 Code 对象
 
-本部分源码只改动一行：
+本部分源码只改动增加一行：
 
 ```c++
-#define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)      \
-  /* GC write barrirer */                                    \
-  // 前面源码太长，略；下一行为新增                                          
-  TFJ(MathTimes10, 1, kReceiver, kX)                         \
-  // 后面源码太长，略
+#define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)    \
+  TFJ(MathTimes10, 1, kReceiver, kX)                       \ 
 ```
 
 主要做了三件事：
@@ -232,24 +229,48 @@ class Code : public HeapObject {
 
 #### 生成索引 Builtins::kMathTimes10
 
-
-上文中，我们在 [src/builtins/builtins-definitions.h](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#34) 的宏 BUILTIN_LIST_BASE 下，新增一行：
+回顾下我们对源码的改动：
 
 ```c++
-#define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)      \
-  /* GC write barrirer */                                    \
-  // 前面源码太长，略                                           
-  TFJ(MathTimes10, 1, kReceiver, kX)                         \
-  // 后面源码太长，略
+#define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)    \
+  TFJ(MathTimes10, 1, kReceiver, kX)                       \ 
 ```
 
-在 V8 源码中全局搜索 BUILTIN_LIST_BASE，发现 [BUILTIN_LIST](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#1321)，有调用 BUILTIN_LIST_BASE。
+在 V8 源码中全局搜索 BUILTIN_LIST_BASE，发现宏 [BUILTIN_LIST](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#1321)，有调用 BUILTIN_LIST_BASE。
 
 ```c++
 #define BUILTIN_LIST(CPP, TFJ, TFC, TFS, TFH, BCH, ASM)  \
   BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)        \
   // 专注重点，后面略
 ```
+
+源码中全局搜索 BUILTIN_LIST，可以搜到多个结果，其中 [Builtins](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins.h#47) 调用了宏 BUILTIN_LIST：
+
+```c++
+class Builtins {
+  public:
+  // 源码太长，前面略
+  enum Name : int32_t {
+#define DEF_ENUM(Name, ...) k##Name,
+    BUILTIN_LIST(DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM,
+                 DEF_ENUM)
+#undef DEF_ENUM
+        builtin_count
+  };
+  // 源码太长，后面略
+}
+```
+
+Builtins 使用宏嵌套声明了枚举，类型为整型，最终效果相当于为 Builtins 类增加了多个常量，其中就有由于我们对 V8 源码的改动，新生成的常量 Builtins::kMathTimes10，其类型为 Builtins::Name。
+
+梳理本节代码调用链路：Builtins 的声明 -> 宏 BUILTIN_LIST -> 宏 BUILTIN_LIST_BASE。其中传递给宏 BUILTIN_LIST_BASE 的所有参数都是 Builtins 定义的宏 DEF_ENUM：
+
+```c++
+  #define DEF_ENUM(Name, ...) k##Name,
+```
+
+索引 Builtins::kMathTimes10 中的 k 本质上来自于宏 DEF_ENUM。
+#### 生成 Code 对象
 
 在 V8 源码中全局搜索 BUILTIN_LIST，发现 [SetupIsolateDelegate::SetupBuiltinsInternal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/setup-builtins-internal.cc#286)有调用 BUILTIN_LIST
 
@@ -288,23 +309,6 @@ code = BuildWithCodeStubAssemblerJS(
 
 ```c++
 Address builtins_[Builtins::builtin_count] = {};
-```
-
-让我们看宏 [BUILTIN_LIST](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins.h#49) 的另一处调用：
-
-```c++
-class Builtins {
-  public:
-  // 源码太长，前面略
-  enum Name : int32_t {
-#define DEF_ENUM(Name, ...) k##Name,
-    BUILTIN_LIST(DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM, DEF_ENUM,
-                 DEF_ENUM)
-#undef DEF_ENUM
-        builtin_count
-  };
-  // 源码太长，后面略
-}
 ```
 
 ![generateCode](https://raw.githubusercontent.com/xudale/blog/master/assets/generateCode.png)
