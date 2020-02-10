@@ -42,7 +42,7 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
 }
 ```
 
-### 生成 Code 对象
+### 生成并存储 Code 对象
 
 在 [src/builtins/builtins-definitions.h](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#34) 的宏 BUILTIN_LIST_BASE 下，新增一行：
 
@@ -54,9 +54,9 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
   // 后面源码太长，略
 ```
 
-### 为 Math 对象添加 times10 属性
+### 取出上一步生成的 Code 对象，添加至 Math 对象的 times10 属性上
 
-在 [src/init/bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705) 文件中的 [Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#1386) 方法，找到初始化 Javascript Math 对象的代码，增加一行：
+在 [src/init/bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705) 文件中的 [Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#1386) 方法，找到初始化 Javascript Math 对象的代码，参考邻近代码，增加一行：
 
 ```c++
 SimpleInstallFunction(isolate_, math, "exp", Builtins::kMathExp, 1, true);
@@ -89,20 +89,18 @@ SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true
 首先回顾一下实现代码：
 
 ```c++
-// ES6 #sec-math.imul
-TF_BUILTIN(MathImul, CodeStubAssembler) {
+TF_BUILTIN(MathTimes10, CodeStubAssembler) {
   Node* context = Parameter(Descriptor::kContext);
-  Node* x = Parameter(Descriptor::kX);
-  Node* y = Parameter(Descriptor::kY);
-  Node* x_value = TruncateTaggedToWord32(context, x);
-  Node* y_value = TruncateTaggedToWord32(context, y);
-  Node* value = Int32Mul(x_value, y_value);
-  Node* result = ChangeInt32ToTagged(value);
+  Node* x = Parameter(Descriptor::kX); // 取出参数 x
+  Node* x_value = TruncateTaggedToFloat64(context, x); // 转换为浮点数
+  Node* y_value = Float64Constant(10.0);
+  Node* value = Float64Mul(x_value, y_value); // 两个浮点数相乘
+  Node* result = ChangeFloat64ToTagged(value);
   Return(result);
 }
 ```
 
-[TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29)是 C++ 定义的宏，源码如下：
+[TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29) 是 C++ 定义的宏，源码如下：
 
 ```c++
 #define TF_BUILTIN(Name, AssemblerBase)                                 \
@@ -132,43 +130,44 @@ TF_BUILTIN(MathImul, CodeStubAssembler) {
 将上两段代码放在一个文件中，使用 g++ 宏扩展命令：
 
 ```c++
-g++ xxxx.cpp -E xxxx.out
+g++ -E file_name.cpp > file_name.i
 ```
 
-得到生成后的文件如下：
+打开 file_name.i，将 C++ 代码格式化后，文件内容如下：
 
 ```c++
-class MathImulAssembler : public CodeStubAssembler { 
+class MathTimes10Assembler : public CodeStubAssembler { 
   public: 
-    using Descriptor = Builtin_MathImul_InterfaceDescriptor;
-    explicit MathImulAssembler(compiler::CodeAssemblerState* state) 
-      : CodeStubAssembler(state) {} 
-  void GenerateMathImulImpl(); 
-  Node* Parameter(Descriptor::ParameterIndices index) { 
-    return CodeAssembler::Parameter(static_cast<int>(index)); 
-  } 
-}; 
-void Builtins::Generate_MathImul(compiler::CodeAssemblerState* state) { 
-  MathImulAssembler assembler(state); 
-  state->SetInitialDebugInformation("MathImul", "macro.cpp", 25); 
-  if (Builtins::KindOf(Builtins::kMathImul) == Builtins::TFJ) { 
+    using Descriptor = Builtin_MathTimes10_InterfaceDescriptor;
+    explicit MathTimes10Assembler(compiler::CodeAssemblerState* state) : CodeStubAssembler(state) {} 
+    void GenerateMathTimes10Impl(); 
+    Node* Parameter(Descriptor::ParameterIndices index) { 
+      return CodeAssembler::Parameter(static_cast<int>(index)); 
+    } 
+  }; 
+void Builtins::Generate_MathTimes10(compiler::CodeAssemblerState* state) { 
+  MathTimes10Assembler assembler(state); 
+  state->SetInitialDebugInformation("MathTimes10", "macro.cpp", 25); 
+  if (Builtins::KindOf(Builtins::kMathTimes10) == Builtins::TFJ) { 
     assembler.PerformStackCheck(assembler.GetJSContextParameter()); 
   } 
-  assembler.GenerateMathImulImpl(); 
+  assembler.GenerateMathTimes10Impl(); 
 } 
-void MathImulAssembler::GenerateMathImulImpl() {
+void MathTimes10Assembler::GenerateMathTimes10Impl() {
   Node* context = Parameter(Descriptor::kContext);
   Node* x = Parameter(Descriptor::kX);
-  Node* y = Parameter(Descriptor::kY);
-  Node* x_value = TruncateTaggedToWord32(context, x);
-  Node* y_value = TruncateTaggedToWord32(context, y);
-  Node* value = Int32Mul(x_value, y_value);
-  Node* result = ChangeInt32ToTagged(value);
+  Node* x_value = TruncateTaggedToFloat64(context, x);
+  Node* y_value = Float64Constant(10.0);
+  Node* value = Float64Mul(x_value, y_value);
+  Node* result = ChangeFloat64ToTagged(value);
   Return(result);
 }
 ```
 
-可见 [TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29)宏最终会把实现代码扩展成一个 C++ 类，V8 有很多奇技淫巧，上面只是入门级的。
+可见 [TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29) 宏主要做了两件事情。
+
+- 生成 MathTimes10Assembler 类，MathTimes10Assembler 类继承自 CodeStubAssembler 类。并为 MathTimes10Assembler 类添加一个新方法 GenerateMathTimes10Impl，GenerateMathTimes10Impl 方法体就是我们自定义 times10 函数的实现代码。我们刚才在实现 times10 的过程中，使用的 Parameter，TruncateTaggedToFloat64等，都是继承自父类。
+- 为 Builtins 类添加方法 Generate_MathTimes10，该方法最终调用了 times10 的实现代码 MathTimes10Assembler::GenerateMathTimes10Impl；
 
 ### 生成 Code 对象
 
