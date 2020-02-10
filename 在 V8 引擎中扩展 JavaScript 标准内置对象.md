@@ -347,7 +347,7 @@ V8_NOINLINE Handle<JSFunction> SimpleInstallFunction(
 }
 ```
 
-SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中找到对应的 Code 对象，生成一个新的 JSFunction 的实例，本节内容总结如下图：
+SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中找到对应的 Code 对象，生成一个新的 JSFunction 的实例，调用 JSObject::AddProperty 函数，添加 times10 属性，本节内容总结如下图：
 
 ![getCode](https://raw.githubusercontent.com/xudale/blog/master/assets/getCode.png)
 
@@ -359,7 +359,7 @@ SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](http
 
 ### 谈谈 Bootstrap 
 
-在芯片或嵌入式领域，Bootstrap 有启动程序和引导程序的含义。这里谈的 [Bootstrap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc) 是 V8 里的一个文件。之所以在文章最后提一下这个文件，是因为这个文件注册了所有 JavaScript 标准所规定的函数，和前端的关系最为密切，因为某些原因，上面的链接可能打不开，笔者索性就粘贴一段 Bootstrap 文件中数组相关的代码：
+在芯片或嵌入式领域，Bootstrap 有启动程序和引导程序的含义。这里谈的 [Bootstrap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc) 是 V8 里的一个文件。之所以在文章最后提一下这个文件，是因为这个文件注册了所有 JavaScript 标准所规定的函数，和前端的关系最为密切，因为某些原因，上面的链接可能打不开，笔者索性就粘贴一段 Bootstrap.cc 文件中数组相关的代码：
 
 ```c++
 // Set up %ArrayPrototype%.
@@ -423,11 +423,11 @@ SimpleInstallFunction(isolate_, proto, "join",
 
 从上面的代码，还可以看到 JavaScript 做为一门动态语言所具有的特点。比如 JavaScript Array 原型上的 concat、pop、push 等方法，方法的名字做为一个字符串，客观的存在于 V8 中。如果运行时想要使用 pop 方法，只要 JavaScript Array 原型上有一个名为 pop 的方法就可以，pop 方法可以由 V8 提供，也可以由第 3 方提供。总之，只要该方法挂载在 JavaScript Array 原型上，并且名称为 pop 就可以。这种特性为 JavaScript 运行时的动态加载提供了基础。
 
-而静态类型语言，如 C 语言。C 语言的变量和函数在编译后都直接对应地址，变量名和函数名在编译后都不复存在，这里可以参考文章[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。通常，静态语言都没有类似 JavaScript 动态加载的特性。
+而静态类型语言，如 C 语言。C 语言的变量和函数在编译后都直接对应地址，变量名和函数名在编译后都不复存在，无法做到类似 JavaScript 的动态加载 js 文件的功能。
 
 ### 关于定制化 V8
 
-V8 最初只应用于 Chrome 浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap 文件里面的很多代码都可以删除，比如下图中有大拇指标记的部分，这部分 API 由于浏览器兼容性的原因，虽然日常开发中早已不再使用，但 V8 源码中继续存在。如果有一天需要在服务端定制 V8，根据本文介绍的内容，顺藤摸瓜，可以从 V8 源码中彻底删除函数定义、生成和获取 Code 对象相关的代码，以便减少运行时 V8 实例的体积。
+V8 最初只应用于 Chrome 浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap.cc 文件里面的很多代码都可以删除，比如下图中有大拇指标记的部分，这部分 API 由于浏览器兼容性的原因，虽然日常开发中早已不再使用，但 V8 源码中继续存在。如果有一天需要在服务端定制 V8，根据本文介绍的内容，顺藤摸瓜，可以从 V8 源码中彻底删除已废弃函数的定义、生成和获取 Code 对象相关的代码，以便减少运行时 V8 实例的体积。
 
 ![delete](https://raw.githubusercontent.com/xudale/blog/master/assets/delete.png)
 
@@ -438,6 +438,8 @@ V8 最初只应用于 Chrome 浏览器，有很多兼容性的包袱。如果在
 [Taming architecture complexity in V8 — the CodeStubAssembler](https://v8.dev/blog/csa)
 
 [从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)
+
+[V8 引擎如何生成 x64 机器码](https://zhuanlan.zhihu.com/p/93835502)
 
 
 
