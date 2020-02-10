@@ -81,7 +81,7 @@ SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true
 
 在 d8 控制台，输入 Math.times10(10)，结果如下图。可见我们在 V8 中为 Math 对象添加的 times10 方法已经生效了。
 
-![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/times10.png)
+![运行结果](https://pic4.zhimg.com/80/v2-fa89bf653291d700365f403b7e1fe22f_hd.jpg)
 
 ## 源码分析
 
@@ -319,7 +319,7 @@ Address builtins_[Builtins::builtin_count] = {};
 
 宏定义嵌套宏定义，并且偶尔传个参数的写法，在 V8 源码中经常出现。这种写法既难读又难解释，下图为目前为止本文内容的缩略版：
 
-![generateCode](https://raw.githubusercontent.com/xudale/blog/master/assets/generateCode.png)
+![generateCode](https://pic1.zhimg.com/80/v2-1ea2c3e341df6809d548919f1e538018_hd.jpg)
 
 ### 取出上一步生成的 Code 对象，添加至 Math 对象的 times10 属性上
 
@@ -349,7 +349,7 @@ V8_NOINLINE Handle<JSFunction> SimpleInstallFunction(
 
 SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中找到对应的 Code 对象，生成一个新的 JSFunction 的实例，调用 JSObject::AddProperty 函数，添加 times10 属性，本节内容总结如下图：
 
-![getCode](https://raw.githubusercontent.com/xudale/blog/master/assets/getCode.png)
+![getCode](https://pic3.zhimg.com/80/v2-a635fdfab59888c5ca0e3905a42122ae_hd.jpg)
 
 ## 一些感想
 
@@ -429,7 +429,7 @@ SimpleInstallFunction(isolate_, proto, "join",
 
 V8 最初只应用于 Chrome 浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap.cc 文件里面的很多代码都可以删除，比如下图中有大拇指标记的部分，这部分 API 由于浏览器兼容性的原因，虽然日常开发中早已不再使用，但 V8 源码中继续存在。如果有一天需要在服务端定制 V8，根据本文介绍的内容，顺藤摸瓜，可以从 V8 源码中彻底删除已废弃函数的定义、生成和获取 Code 对象相关的代码，以便减少运行时 V8 实例的体积。
 
-![delete](https://raw.githubusercontent.com/xudale/blog/master/assets/delete.png)
+![delete](https://pic4.zhimg.com/80/v2-65b0f4305a882b26c0d58318bee0a5eb_hd.jpg)
 
 ## 参考文献
 
