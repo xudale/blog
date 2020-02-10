@@ -49,7 +49,7 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
 ```c++
 #define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)      \
   /* GC write barrirer */                                    \
-  // 前面源码太长，略                                           
+  // 前面源码太长，略；下一行为新增                                          
   TFJ(MathTimes10, 1, kReceiver, kX)                         \
   // 后面源码太长，略
 ```
@@ -166,11 +166,29 @@ void MathTimes10Assembler::GenerateMathTimes10Impl() {
 
 可见 [TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29) 宏主要做了两件事情。
 
-- 生成 MathTimes10Assembler 类，MathTimes10Assembler 类继承自 CodeStubAssembler 类。并为 MathTimes10Assembler 类添加一个新方法 GenerateMathTimes10Impl，GenerateMathTimes10Impl 方法体就是我们自定义 times10 函数的实现代码。我们刚才在实现 times10 的过程中，使用的 Parameter，TruncateTaggedToFloat64等，都是继承自父类。
+- 生成 MathTimes10Assembler 类，MathTimes10Assembler 类继承自 CodeStubAssembler 类。并为 MathTimes10Assembler 类添加一个新方法 GenerateMathTimes10Impl，GenerateMathTimes10Impl 方法体就是我们自定义 times10 函数的实现代码。我们刚才在实现 times10 的过程中，使用的 Parameter，TruncateTaggedToFloat64 等函数，都是继承自父类。
 - 为 Builtins 类添加方法 Generate_MathTimes10，该方法最终调用了 times10 的实现代码 MathTimes10Assembler::GenerateMathTimes10Impl；
 
-### 生成 Code 对象
+### 生成并存储 Code 对象
 
+本部分源码只改动一行：
+
+```c++
+#define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)      \
+  /* GC write barrirer */                                    \
+  // 前面源码太长，略；下一行为新增                                          
+  TFJ(MathTimes10, 1, kReceiver, kX)                         \
+  // 后面源码太长，略
+```
+
+主要做了三件事：
+
+- 生成索引 Builtins::kMathTimes10；
+- 生成 Code 对象；
+- 存储 Code 对象；
+
+首先简要介绍下 V8 中的 Code 类
+#### Code 类简介
 Code 是 V8 中的一个类，用于描述可执行代码。每个 JavaScript 函数在 V8 中都有一个与之关联的 Code 对象，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
 
 ```c++
@@ -179,9 +197,7 @@ class JSFunction : public JSObject {
   // 源码在长，略
   // [code]: The generated code object for this function.  Executed
   // when the function is invoked, e.g. foo() or new foo(). See
-  // [[Call]] and [[Construct]] description in ECMA-262, section
-  // 8.6.2, page 27.
-  inline Code code() const; 
+  inline Code code() const; // 这个就是本节要介绍的 Code
   inline void set_code(Code code);
   // Get the abstract code associated with the function, which will either be
   // a Code object or a BytecodeArray.
@@ -189,7 +205,7 @@ class JSFunction : public JSObject {
 }
 ```
 
-JSFunction 对应 JavaScript 的函数，JSObject 对应 JavaScript 的对象。相关内容可参考[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。
+JSFunction 对应 JavaScript 的函数，JSObject 对应 JavaScript 的对象。JSFunction 继承自 JSObject，并增加了 code 和 set_code 等与可执行代码相关的字段或方法，JSObject 并没有可执行代码相关的字段，这一点与我们使用 JavaScript 的体验是一致的。在 V8 源码中 JavaScript 函数与对象的关系，可参考[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。
 
 Code 对象[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/code.h#31)
 
@@ -211,6 +227,11 @@ class Code : public HeapObject {
   inline bool is_turbofanned() const;
 }
 ```
+
+从 Code 的声明来看，Code 是描述可执行代码的类。
+
+#### 生成索引 Builtins::kMathTimes10
+
 
 上文中，我们在 [src/builtins/builtins-definitions.h](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#34) 的宏 BUILTIN_LIST_BASE 下，新增一行：
 
