@@ -263,16 +263,17 @@ class Builtins {
 
 Builtins 使用宏嵌套声明了枚举，类型为整型，最终效果相当于为 Builtins 类增加了多个常量，其中就有由于我们对 V8 源码的改动，新生成的常量 Builtins::kMathTimes10，其类型为 Builtins::Name。
 
-梳理本节代码调用链路：Builtins 的声明 -> 宏 BUILTIN_LIST -> 宏 BUILTIN_LIST_BASE。其中传递给宏 BUILTIN_LIST_BASE 的所有参数都是 Builtins 定义的宏 DEF_ENUM：
+梳理本节代码调用链路：Builtins 的声明 -> 宏 BUILTIN_LIST -> 宏 BUILTIN_LIST_BASE。其中传递给宏 BUILTIN_LIST_BASE 的所有参数都是类 Builtins 声明代码中定义的宏 DEF_ENUM：
 
 ```c++
   #define DEF_ENUM(Name, ...) k##Name,
 ```
 
 索引 Builtins::kMathTimes10 中的 k 本质上来自于宏 DEF_ENUM。
+
 #### 生成 Code 对象
 
-在 V8 源码中全局搜索 BUILTIN_LIST，发现 [SetupIsolateDelegate::SetupBuiltinsInternal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/setup-builtins-internal.cc#286)有调用 BUILTIN_LIST
+BUILTIN_LIST 的另一处调用 [SetupIsolateDelegate::SetupBuiltinsInternal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/setup-builtins-internal.cc#286)：
 
 ```c++
 void SetupIsolateDelegate::SetupBuiltinsInternal(Isolate* isolate) {
@@ -290,26 +291,32 @@ void SetupIsolateDelegate::SetupBuiltinsInternal(Isolate* isolate) {
 }
 ```
 
-这种宏嵌套宏，并且不同的宏定义相隔甚选的写法，笔者是第一次见，当初耗费很长时间才看懂这段代码。其实，SetupIsolateDelegate::SetupBuiltinsInternal 主要做了两件事情：获取 Code 对象，将 Code 对象存入 builtins 数组。
-
-获取 Code 对象的代码宏扩展展开后：
+这时宏 BUILTIN_LIST_BASE 的所有参数都是 宏 BUILD_TFJ，宏 BUILD_TFJ 的第一个作用是获取了 Code 对象，宏替换后代码如下：
 
 ```c++
 code = BuildWithCodeStubAssemblerJS(                          
       isolate, index, &Builtins::Generate_MathTimes10, Argc, "MathTimes10"); 
 ```
 
-将 Code 对象存入 builtins 数组：
+其中 Builtins::Generate_MathTimes10 是上文提到的，在实现 times10 功能的时候，在宏 TF_BUILTIN 的作用下，我们为类 Builtins 添加的新方法，它生成了 Code 对象。
+
+#### 存储 Code 对象
+
+将 Code 对象存入 builtins 数组，源码还是位于宏 BUILD_TFJ 中：
 
 ```c++
   AddBuiltin(builtins, index++, code); 
 ```
 
-顺着 AddBuiltin 的源码一直追下去，发现所有的 Code 对象都存在 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162)中。
+顺着 AddBuiltin 的源码一直追下去，发现所有的 Code 对象都存在 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中。
 
 ```c++
 Address builtins_[Builtins::builtin_count] = {};
 ```
+
+梳理本节代码调用链路：SetupIsolateDelegate::SetupBuiltinsInternal -> 宏 BUILTIN_LIST -> 宏 BUILTIN_LIST_BASE，其中宏 BUILTIN_LIST_BASE 中的形参 TFJ，接收到的实际参数是宏 BUILD_TFJ。
+
+宏定义嵌套宏定义，还时不时传个参数的写法，在 V8 源码中经常出现。这种写法既难读又难解释，下图为目前为止本文内容的缩略版：
 
 ![generateCode](https://raw.githubusercontent.com/xudale/blog/master/assets/generateCode.png)
 
