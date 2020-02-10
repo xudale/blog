@@ -33,10 +33,10 @@ TF_BUILTIN(MathImul, CodeStubAssembler) {
 ```c++
 TF_BUILTIN(MathTimes10, CodeStubAssembler) {
   Node* context = Parameter(Descriptor::kContext);
-  Node* x = Parameter(Descriptor::kX);
-  Node* x_value = TruncateTaggedToFloat64(context, x);
+  Node* x = Parameter(Descriptor::kX); // 取出参数 x
+  Node* x_value = TruncateTaggedToFloat64(context, x); // 转换为浮点数
   Node* y_value = Float64Constant(10.0);
-  Node* value = Float64Mul(x_value, y_value);
+  Node* value = Float64Mul(x_value, y_value); // 两个浮点数相乘
   Node* result = ChangeFloat64ToTagged(value);
   Return(result);
 }
@@ -56,25 +56,29 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
 
 ### 为 Math 对象添加 times10 属性
 
-在[src/init/bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705)文件中的[Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#1386) Math 对象相关，增加一行
+在 [src/init/bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705) 文件中的 [Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#1386) 方法，找到初始化 Javascript Math 对象的代码，增加一行：
 
 ```c++
 SimpleInstallFunction(isolate_, math, "exp", Builtins::kMathExp, 1, true);
-Handle<JSFunction> math_floor = SimpleInstallFunction(
-  isolate_, math, "floor", Builtins::kMathFloor, 1, true);
-native_context()->set_math_floor(*math_floor);
 // 下面一行为新增
 SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true);
 ```
 
-一共修改了 3 处代码，编译 V8，运行 D8：
+### 编译运行 V8
+
+一共修改了 3 处代码，编译 V8：
 
 ```c++
 ./tools/dev/gm.py x64.debug
+```
+
+然后运行 D8：
+
+```c++
 ./out/x64.debug/d8
 ```
 
-结果如下：
+在 d8 控制台，输入 Math.times10(10)，结果如下图。可见我们在 V8 中为 Math 对象添加的 times10 方法已经生效了。
 
 ![运行结果](https://raw.githubusercontent.com/xudale/blog/master/assets/times10.png)
 
@@ -373,7 +377,7 @@ SimpleInstallFunction(isolate_, proto, "join",
 
 ### 关于定制化 V8
 
-V8 最诞生最初只应用于浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap 里面的很多代码都可以删除，比如：
+V8 最初只应用于浏览器，有很多兼容性的包袱。如果在服务端定制 V8，Bootstrap 里面的很多代码都可以删除，比如下图中有大拇指标记的部分，这部分 API 由于浏览器兼容性的原因，在 V8 源码中继续存在。如果 V8 只运行在服务端，这部分源码可以删除，以便减少运行时 V8 实例的体积。
 
 ![delete](https://raw.githubusercontent.com/xudale/blog/master/assets/delete.png)
 
