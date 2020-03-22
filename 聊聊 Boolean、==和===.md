@@ -1,5 +1,5 @@
 # 聊聊 Boolean、==和===
-业务开发，踩坑多次，本文将从 V8 源码分析 Boolean、==和===。
+面试被类似问题虐过多次，本文将从 V8 源码分析 Boolean、== 和 ===。
 ## Boolean
 在 JavaScript 中，Boolean 函数有两种调用方式，一种是函数式调用：
 
@@ -21,7 +21,7 @@ BooleanConstructor(context: Context, receiver: Object, ...arguments): Object {
     // 如果是函数式调用，此处返回
     return value;
   }
-  // 如果是构造函数式调用，执行下面逻辑，建议不看
+  // 如果是构造函数式调用，执行下面逻辑，建议先忽略
   const target = UnsafeCast<JSFunction>(Parameter(TARGET_INDEX));
   const map = GetDerivedMap(target, UnsafeCast<JSReceiver>(newTarget));
   let properties = kEmptyFixedArray;
@@ -35,9 +35,9 @@ BooleanConstructor(context: Context, receiver: Object, ...arguments): Object {
 }
 ```
 
-BooleanConstructor 函数的逻辑很简单，通过 ToBoolean(arguments[0]) 将参数转为 true 或 false，如果是函数式调用，立刻返回，这也是日常开发中常见的情况。
+BooleanConstructor 函数的逻辑很简单，通过 ToBoolean(arguments[0]) 将参数转为 true 或 false，如果是函数式调用，立刻返回结果，这也是日常开发中常见的情况。
 
-ToBoolean 还是由 Torque 实现，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/base.tq#2784)：
+ToBoolean [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/base.tq#2784)：
 
 ```c++
 macro ToBoolean(obj: Object): bool {
@@ -49,7 +49,7 @@ macro ToBoolean(obj: Object): bool {
 }
 ```
 
-从源码来看 ToBoolean 函数只是在 BranchIfToBooleanIsTrue 外面包了一层而已，ToBoolean 源码也是由 Torque 实现，虽然我们都没有学习过 Torque 语言，但只要有任何一门静态类型语言的基础，基本可以看懂。重头戏 BranchIfToBooleanIsTrue 由 CodeStubAssembler 实现，CodeStubAssembler 整体语法类似汇编，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1328):
+从源码来看 ToBoolean 函数只是在 BranchIfToBooleanIsTrue 外面包了一层而已，ToBoolean 源码也是由 Torque 实现，Torque 语法类似 Typescript。重头戏 BranchIfToBooleanIsTrue 由 CodeStubAssembler 实现，CodeStubAssembler 整体语法类似汇编，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1328):
 
 ```c++
 void CodeStubAssembler::BranchIfToBooleanIsTrue(Node* value, Label* if_true,
@@ -117,10 +117,11 @@ BIND(&if_smi);
 ```
 
 > V8 中 Boolean 的实现逻辑看似冗长，其实和 ECMAScript Spec 的定义是一一对应的
+> 
 > 在 JavaScript 中无论是 Boolean 还是 new Boolean()，在 V8 中执行的是同一个函数，只是分支和返回值不同
 
 
-## ==
+## == 运算符
 
 V8 [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#11758)
 
@@ -157,17 +158,18 @@ Node* CodeStubAssembler::Equal(Node* left, Node* right, Node* context,
 
 ```
 
-在 JavaScript 中的 == 运算符，V8 中的源码有大约 400 行，本文不可能完全分析，看 ECMAScript Spec 相关的定义会简单一些：
+JavaScript 中的 == 运算符，V8 中相应的源码有大约 400 行，本文不做完全分析，看 ECMAScript Spec 相关的定义后再看源码会简单一些：
 ![AbstractEquality](https://raw.githubusercontent.com/xudale/blog/master/assets/AbstractEquality.png)
-从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。
-> 面试中遇到 x == y 应该怎么回答
-
-> 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol、BigInt，在应用 == 运算符的情况下两两组合，有 8 * 8 = 64 种可能性。ECMAScript Spec 只列举了 10 几种组合的结果，其它规范未列举的一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
-> 2.null 与 undefined 相等，反之也成立。null 或 undefined 与其它类型绝大多数情况下都不相等，遇到 null/undefined == 0/false/'0' 之类的问题，继续回答 false，此时正确率已达到 80%
+从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。根据高中数学的排列组合，Spec 只定义了少数情况，然而 V8 却需要 400 行代码去实现。如果 Spec 定义了全部可能的情况，需要千行代码来实现，得不偿失。
+> 面试中遇到 x == y 应该怎么回答？
+> 
+> 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol、BigInt，两两组合，有 8 * 8 = 64 case。ECMAScript Spec 只定义了 10 几种 case，其它 40多种 case 一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
 >
-> 3.明显可以转换为 Number 的情况，如 1 == true/'1'，把 == 左右两边的值都转换成 Number 再比较，此时正确率可达 90%。剩下的情况笔者已放弃，看官继续努力。总之，只要回答 false 就有 80% 的正确率
+> 2.null 与 undefined 相等，反之也成立。null 或 undefined 与其它类型绝大多数情况下都不相等，遇到 null/undefined == 0/false/'0' 之类的问题，请回答 false，此时正确率已达到 80%
+>
+> 3.明显可以转换为 Number 的情况，如 1 == true/'1'，把 == 左右两边的值都转换成 Number 再比较，此时正确率可达 90%。剩下的情况本文已放弃，看官继续努力。总之，只要回答 false 至少就有 80% 的正确率
 
-## ===
+## === 运算符
 
 === 运算符最安全稳妥，因为坑少，只截取一小部分[伪代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12155)
 
@@ -189,7 +191,11 @@ Node* CodeStubAssembler::StrictEqual(Node* lhs, Node* rhs,
 NaN === NaN // false
 ```
 
-这应该是 === 运算符唯一的一个坑点
+这应该是 === 运算符唯一的一个坑点。
+
+## 总结
+
+Boolean、== 和 === 在 V8 中是 3 段互相独立的逻辑，不可混淆。
 
 
 
