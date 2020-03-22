@@ -1,4 +1,4 @@
-# 聊聊 Boolean、==和===
+# 聊聊 Boolean、== 和 ===
 面试被类似问题虐过多次，本文将从 V8 源码分析 Boolean、== 和 ===。
 ## Boolean
 在 JavaScript 中，Boolean 函数有两种调用方式，一种是函数式调用：
@@ -158,14 +158,14 @@ Node* CodeStubAssembler::Equal(Node* left, Node* right, Node* context,
 
 ```
 
-JavaScript 中的 == 运算符，V8 中相应的源码有大约 400 行，本文不做完全分析，看 ECMAScript Spec 相关的定义后再看源码会简单一些：
+JavaScript 中的 == 运算符，V8 中相应的源码大约有 400 行，本文不做完全分析，看 ECMAScript Spec 相关的定义后再看源码会简单一些：
 ![AbstractEquality](https://raw.githubusercontent.com/xudale/blog/master/assets/AbstractEquality.png)
-从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。根据高中数学的排列组合，Spec 只定义了少数情况，然而 V8 却需要 400 行代码去实现。如果 Spec 定义了全部可能的情况，需要千行代码来实现，得不偿失。
+从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。Spec 只定义了少数 case，然而 V8 却需要 400 行代码去实现。如果 Spec 定义了全部可能的 case，需要几千行代码来实现，得不偿失。个人认为这是 Spec 未定义 == 运算符可能出现的所有 case 的原因。
 > 面试中遇到 x == y 应该怎么回答？
 > 
-> 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol、BigInt，两两组合，有 8 * 8 = 64 case。ECMAScript Spec 只定义了 10 几种 case，其它 40多种 case 一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
+> 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol和BigInt，两两组合，有 8 * 8 = 64 种  case。ECMAScript Spec 只定义了 10 几种 case，其它 40多种 case 一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
 >
-> 2.null 与 undefined 相等，反之也成立。null 或 undefined 与其它类型绝大多数情况下都不相等，遇到 null/undefined == 0/false/'0' 之类的问题，请回答 false，此时正确率已达到 80%
+> 2.null 与 undefined 相等，反之也成立。null 或 undefined 与其它类型绝大多数情况下都不相等，遇到 null/undefined == 0/false/'0' 之类的问题，请回答 false，此时正确率可达 80%
 >
 > 3.明显可以转换为 Number 的情况，如 1 == true/'1'，把 == 左右两边的值都转换成 Number 再比较，此时正确率可达 90%。剩下的情况本文已放弃，看官继续努力。总之，只要回答 false 至少就有 80% 的正确率
 
