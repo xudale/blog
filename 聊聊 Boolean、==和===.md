@@ -117,9 +117,54 @@ BIND(&if_smi);
 ```
 
 > V8 中 Boolean 的实现逻辑看似冗长，其实和 ECMAScript Spec 的定义是一一对应的
+> 在 JavaScript 中无论是 Boolean 还是 new Boolean()，在 V8 中执行的是同一个函数，只是分支和返回值不同
 
 
 ## ==
+
+V8 [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#11758)
+
+```c++
+// ES6 section 7.2.12 Abstract Equality Comparison
+Node* CodeStubAssembler::Equal(Node* left, Node* right, Node* context,
+                               Variable* var_type_feedback) {
+  // 前面省略几百行
+  Label if_notsame(this);
+  GotoIf(WordNotEqual(left, right), &if_notsame);
+  {
+    // {left} and {right} reference the exact same value, yet we need special
+    // treatment for HeapNumber, as NaN is not equal to NaN.
+    GenerateEqual_Same(left, &if_equal, &if_notequal, var_type_feedback);
+  }
+  BIND(&if_notsame);
+  Label if_left_smi(this), if_left_not_smi(this);
+  Branch(TaggedIsSmi(left), &if_left_smi, &if_left_not_smi);
+  BIND(&if_left_smi);
+  {
+    Label if_right_smi(this), if_right_not_smi(this);
+    Branch(TaggedIsSmi(right), &if_right_smi, &if_right_not_smi);
+    BIND(&if_right_smi);
+    {
+      // We have already checked for {left} and {right} being the same value,
+      // so when we get here they must be different Smis.
+      CombineFeedback(var_type_feedback,
+                      CompareOperationFeedback::kSignedSmall);
+      Goto(&if_notequal);
+    }
+  }
+  // 后面省略几百行
+}
+
+```
+
+在 JavaScript 中的 == 运算符，V8 中的源码有大约 400 行，本文不可能完全分析，看 ECMAScript Spec 相关的定义会简单一些：
+![AbstractEquality](https://raw.githubusercontent.com/xudale/blog/master/assets/AbstractEquality.png)
+从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。
+> 面试中遇到 x == y 应该怎么回答
+> 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol、BigInt，在应用 == 运算符的情况下两两组合，有 8 * 8 = 64 种可能性。ECMAScript Spec 只列举了 10 几种组合的结果，其它规范未列举的一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
+> 2.null 与 undefined 相等，反之也成立。null 或 undefined 与其它类型绝大多数情况下都不相等，遇到 null/undefined == 0/false/'0' 之类的问题，继续回答 false，此时正确率已达到 80%
+> 3.明显可以转换为 Number 的情况，如 1 == true/'1'，把 == 左右两边的值都转换成 Number 再比较，此时正确率可达 90%。剩下的情况笔者已放弃，看官继续努力。总之，只要回答 false 就有 80% 的正确率
+
 ## ===
 
 
