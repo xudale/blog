@@ -160,19 +160,39 @@ Node* CodeStubAssembler::Equal(Node* left, Node* right, Node* context,
 在 JavaScript 中的 == 运算符，V8 中的源码有大约 400 行，本文不可能完全分析，看 ECMAScript Spec 相关的定义会简单一些：
 ![AbstractEquality](https://raw.githubusercontent.com/xudale/blog/master/assets/AbstractEquality.png)
 从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。
-> 面试中遇到 x == y 应该怎么回答
+> ###面试中遇到 x == y 应该怎么回答
 
 > 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol、BigInt，在应用 == 运算符的情况下两两组合，有 8 * 8 = 64 种可能性。ECMAScript Spec 只列举了 10 几种组合的结果，其它规范未列举的一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
 > 2.null 与 undefined 相等，反之也成立。null 或 undefined 与其它类型绝大多数情况下都不相等，遇到 null/undefined == 0/false/'0' 之类的问题，继续回答 false，此时正确率已达到 80%
+
 > 3.明显可以转换为 Number 的情况，如 1 == true/'1'，把 == 左右两边的值都转换成 Number 再比较，此时正确率可达 90%。剩下的情况笔者已放弃，看官继续努力。总之，只要回答 false 就有 80% 的正确率
 
 ## ===
 
+=== 运算符最安全稳妥，因为坑少，只截取一小部分[伪代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12155)
+
+```c++
+Node* CodeStubAssembler::StrictEqual(Node* lhs, Node* rhs,
+                                     Variable* var_type_feedback) {
+  // Pseudo-code for the algorithm below:
+  //
+  // if (lhs == rhs) {
+  //   if (lhs->IsHeapNumber()) return HeapNumber::cast(lhs)->value() != NaN;
+  //   return true;
+  // }
+}
+```
+
+伪代码描述的情况是如果左右两个操作数在 C++ 层面相等，但其中一个操作数是 NaN，则返回 false，即
+
+```JavaScript
+NaN === NaN // false
+```
+
+这应该是 === 运算符唯一的一个坑点
 
 
 
-
-[V8 源码](https://cs.chromium.org/chromium/src/v8/?g=0)可在浏览器中查看，这个网站在代码浏览与检索方面的功能十分强大，可以快速的查看 C++ 变量的定义和引用。缺点是不能查看 V8 某个版本或某个 git tag 的源码，但依然强烈推荐。如果想要查看 V8 某个 tag 的源码，可以访问 [v8.git](https://chromium.googlesource.com/v8/v8.git) 。如果想要在本地编译 V8 源码，在参考 [V8 官方文档](https://v8.dev/docs/build-gn)的基础上，还要注意墙的问题，浏览器能访问 google 不代表终端也能访问 google，终端也需要设置代理。
 
 
 
