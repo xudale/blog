@@ -200,14 +200,23 @@ Boolean、== 和 === 在 V8 中是 3 段互相独立的逻辑，不可混淆。
 > 随堂小测验：
 > 
 > Boolean('0') // true，因为 '0' 是字符串且长度大于 0
+>
 > Boolean('') // false，因为 '' 是空字符串且长度为 0
+>
 > null == undefined // true
+>
 > null == '' // false，null 与 undefined 以外的绝大多数类型都不相等
+>
 > null == '0' // false
+>
 > null == false // false
+>
 > null == document.all // true，document.all 不按套路出牌
+>
 > undefined == document.all // true
+>
 > Boolean(document.all) // false
+>
 > NaN == NaN // false，NaN 和谁都不相等
 
 
