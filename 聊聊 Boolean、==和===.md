@@ -198,6 +198,7 @@ NaN === NaN // false
 Boolean、== 和 === 在 V8 中是 3 段互相独立的逻辑，不可混淆。
 
 > 随堂小测验：
+> 
 > Boolean('0') // true，因为 '0' 是字符串且长度大于 0
 > Boolean('') // false，因为 '' 是空字符串且长度为 0
 > null == undefined // true
