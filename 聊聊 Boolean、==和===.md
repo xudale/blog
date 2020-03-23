@@ -101,7 +101,7 @@ void CodeStubAssembler::BranchIfToBooleanIsTrue(Node* value, Label* if_true,
   }
 }
 ```
-Label 类似汇编语言的标号，GotoIf 和 Branch 类似汇编语言的条件跳转，smi 是 Small Integer 的缩写，代码逻辑有些冗长。对照 ECMAScript Spec 可以看出代码逻辑与 Spec 的定义是一致的。Spec 中 ToBoolean 规范如下：
+Label 类似汇编语言的标号，GotoIf 和 Branch 类似汇编语言的条件跳转，smi 是 Small Integer 的缩写，代码逻辑有些冗长。对照 ECMAScript Spec 可以看出代码逻辑与 Spec 的定义是一致的。Spec 中 ToBoolean 定义如下：
 
 ![ToBoolean](https://raw.githubusercontent.com/xudale/blog/master/assets/ToBoolean.png)
 
@@ -160,10 +160,10 @@ Node* CodeStubAssembler::Equal(Node* left, Node* right, Node* context,
 
 JavaScript 中的 == 运算符，V8 中相应的源码大约有 400 行，本文不做完全分析，看 ECMAScript Spec 相关的定义后再看源码会简单一些：
 ![AbstractEquality](https://raw.githubusercontent.com/xudale/blog/master/assets/AbstractEquality.png)
-从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。Spec 只定义了少数 case，然而 V8 却需要 400 行代码去实现。如果 Spec 定义了全部可能的 case，需要几千行代码来实现，得不偿失。个人认为这是 Spec 未定义 == 运算符可能出现的所有 case 的原因。
+从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。虽然 Spec 只定义了少数 case，然而 V8 却需要 400 行代码去实现。如果 Spec 定义了全部可能的 case，需要几千行代码来实现，得不偿失。个人认为这是 Spec 未定义 == 运算符可能出现的所有 case 的原因。
 > 面试中遇到 x == y 应该怎么回答？
 > 
-> 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol 和 BigInt，两两组合，有 8 * 8 = 64 种  case。ECMAScript Spec 只定义了 10 几种 case，其它 40多种 case 一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
+> 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol 和 BigInt，两两组合，有 8 * 8 = 64 种 case。ECMAScript Spec 只定义了 10 几种 case，其它 40 多种 case 一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
 >
 > 2.null 与 undefined 相等，反之也成立。null 或 undefined 与其它类型绝大多数情况下都不相等，遇到 null/undefined == 0/false/'0' 之类的问题，请回答 false，此时正确率可达 80%
 >
@@ -171,7 +171,7 @@ JavaScript 中的 == 运算符，V8 中相应的源码大约有 400 行，本文
 
 ## === 运算符
 
-=== 运算符最安全稳妥，因为坑少，只截取一小部分[伪代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12155)
+=== 运算符最为安全稳妥，因为坑少，只截取一小部分[伪代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12155)：
 
 ```c++
 Node* CodeStubAssembler::StrictEqual(Node* lhs, Node* rhs,
