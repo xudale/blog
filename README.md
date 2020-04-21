@@ -7,3 +7,5 @@
 
 [聊聊 Boolean、== 和 ===](https://github.com/xudale/blog/blob/master/%E8%81%8A%E8%81%8A%20Boolean%E3%80%81%3D%3D%E5%92%8C%3D%3D%3D.md "聊聊 Boolean、== 和 ===")
 
+[microtask 队列与 async/await](https://github.com/xudale/blog/blob/master/microtask%20%E9%98%9F%E5%88%97%E4%B8%8E%20async%E3%80%81await.md "microtask 队列与 async/await")
+

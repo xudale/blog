@@ -1,6 +1,9 @@
-# 聊聊 Boolean、== 和 ===
-面试被类似问题虐过多次，本文将从 V8 源码分析 Boolean、== 和 ===。
-## Boolean
+# microtask 队列与 async/await 源码分析
+本文分析 V8 7.7.1 版本中的 microtask 队列和 async/await 的核心代码。
+## microtask 队列
+### 基础逻辑
+
+### 奇技淫巧（建议跳过）
 在 JavaScript 中，Boolean 函数有两种调用方式，一种是函数式调用：
 
 ```JavaScript
