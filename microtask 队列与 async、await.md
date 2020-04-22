@@ -1,8 +1,8 @@
 # microtask 队列与 async/await 源码分析
-本文分析 V8 7.7.1 版本中的 microtask 队列和 async/await 的核心代码。
+本文先分析 microtask 队列，后分析 async/await，版本为 V8 7.7.1。
 ## microtask 队列
 
-microtask 队列存在于 V8 中，从 Node 和 V8 源码来看，V8 有暴露 microtask 队列相关的方法给 Node。也就是说 Node 可以操作 V8 的 microtask 队列，比如向 microtask 队列新增一个 microtask，或者把 microtask 队列的每一个 microtask 都执行一遍。
+microtask 队列存在于 V8 中，从 Node 和 V8 源码来看，V8 有暴露 microtask 队列的相关方法给 Node。也就是说 Node 可以控制 V8 的 microtask 队列，比如向 microtask 队列新增一个 microtask，或者遍历 microtask 队列。
 ### 基础功能
 
 当执行以下代码：
@@ -17,6 +17,7 @@ void MicrotaskQueue::EnqueueMicrotask(Microtask microtask) {
   if (size_ == capacity_) {
     // size_:microtask 队列中 microtask 的个数
     // capacity_:microtask 队列的容量
+    // size_ 等于 capacity_ 说明容量不够，需要扩容
     intptr_t new_capacity = std::max(kMinimumCapacity, capacity_ << 1); // 得到新容量
     ResizeBuffer(new_capacity); // 开始扩容
   }
@@ -27,7 +28,7 @@ void MicrotaskQueue::EnqueueMicrotask(Microtask microtask) {
   ++size_; // 个数自增 1
 }
 ```
-MicrotaskQueue 对象就是 microtask 队列在 V8 中的抽象表示，size_ 表示 microtask 队列中 microtask 的个数，capacity_ 表示 microtask 队列的容量，如果 size_ == capacity_，表示 microtask 队列容量不够，需要扩容。调用 ResizeBuffer 方法给 microtask 队列扩容。
+MicrotaskQueue 类就是 microtask 队列在 V8 中的抽象表示，size_ 表示 microtask 队列中 microtask 的个数，capacity_ 表示 microtask 队列的容量，如果 size_ == capacity_，表示 microtask 队列容量不够，需要扩容。调用 ResizeBuffer 方法给 microtask 队列扩容。
 
 如果 microtask 队列容量足够，则向 ring_buffer_ 中存入当前的 microtask，ring_buffer_ 是一个指针，通过 ring_buffer_ 可以找到所有的 microtask，ring_buffer_ 定义如下：
 
@@ -60,14 +61,14 @@ ResizeBuffer 方法的逻辑很简单，总结如下：
 - ring_buffer_ 指向新的数组
 - 容量更新为新的容量
 
-> microtask 队列存在于 V8 中，V8 有暴露操作 microtask 队列的方法给 Node
+> microtask 队列存在于 V8 中，V8 有暴露 microtask 队列的方法给 Node
 >
-> microtask 队列的底层数据结构为数组，或者动态数组
+> microtask 队列的底层数据结构为数组，或者动态数组，而且只进不出
 
 
-### 奇技淫巧（建议跳过）
+### 奇技淫巧（建议跳过不看）
 
-前端程序员觉得 C++ 是足够快的，V8 觉得 C++ 还不够快，所以 V8 内部使用 CodeStubAssembler，在上文 MicrotaskQueue 的基础上，把 microtask 队列的逻辑，基本又实现了一遍。事实上，Javascript 的内置函数，大多都是用 CodeStubAssembler 实现的。CodeStubAssembler 版本的 EnqueueMicrotask [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#474)：
+前端程序员觉得 C++ 是足够快的，V8 觉得 C++ 还不够快，所以 V8 内部使用 CodeStubAssembler 语言，在上文 MicrotaskQueue 的基础上，进一步优化了 microtask 队列的性能。事实上，Javascript 的内置函数，大多都是用 CodeStubAssembler 实现的。CodeStubAssembler 版本的 EnqueueMicrotask [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#474)：
 
 
 ```c++
@@ -105,6 +106,41 @@ TF_BUILTIN(EnqueueMicrotask, MicrotaskQueueBuiltinsAssembler) {
 ```
 
 看过了 C++ 版本的 MicrotaskQueue 的实现。再看 CodeStubAssembler 版本中的变量 ring_buffer，capacity，size，start，有没有似曾相识的感觉呢。其实刚才见到的几个变量，底层还是 C++ 版本中的 MicrotaskQueue 的同名变量。本文只分析下面这行代码，其它代码逻辑类似。
+
+```c++
+  TNode<RawPtrT> ring_buffer = GetMicrotaskRingBuffer(microtask_queue); 
+```
+
+GetMicrotaskRingBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#61)：
+
+```c++
+TNode<RawPtrT> MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer(
+    TNode<RawPtrT> microtask_queue) {
+  // CodeStubAssembler::Print("MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer");
+  return UncheckedCast<RawPtrT>(
+      Load(MachineType::Pointer(), microtask_queue,
+           IntPtrConstant(MicrotaskQueue::kRingBufferOffset)));
+}
+```
+
+可见 GetMicrotaskRingBuffer 的逻辑是从 microtask_queue 对象上，读偏移量为 MicrotaskQueue::kRingBufferOffset 的字段。
+MicrotaskQueue::kRingBufferOffset [定义如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#22)：
+
+```c++
+#define OFFSET_OF(type, field) \
+  (reinterpret_cast<intptr_t>(&(reinterpret_cast<type*>(16)->field)) - 16)
+
+const size_t MicrotaskQueue::kRingBufferOffset =
+    OFFSET_OF(MicrotaskQueue, ring_buffer_);
+```
+
+MicrotaskQueue::kRingBufferOffset 表示 ring_buffer_ 在 MicrotaskQueue 对象上的偏移量。只要有了偏移量，就可以通过非常规手段访问 ring_buffer_，V8 就是这么干的，这也是本节名称奇技淫巧的由来。
+
+本节逻辑整理如下：
+
+- C++ 实现了 MicrotaskQueue
+- V8 使用 CodeStubAssembler 对 MicrotaskQueue 做了优化，但底层还是 C++ 版本的 MicrotaskQueue 对象
+- CodeStubAssembler 通过 MicrotaskQueue 对象 + 相应字段的偏移量，来操作 MicrotaskQueue 对象的字段，如 ring_buffer_，capacity，size，start 等
 
 执行 microtask 队列的[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#524)：
 
@@ -158,39 +194,9 @@ TF_BUILTIN(RunMicrotasks, MicrotaskQueueBuiltinsAssembler) {
 ```
 
 从 RunMicrotasks 源码来看，整体风格类似于汇编语言写 for 循环，BIND(&loop) 相当于循环体，连续从 ring_buffer 里取出一个 microtask 执行，当循环条件不再满足时，跳转到 BIND(&done)。
-```c++
-  TNode<RawPtrT> ring_buffer = GetMicrotaskRingBuffer(microtask_queue); 
-```
 
-GetMicrotaskRingBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#61)：
 
-```c++
-TNode<RawPtrT> MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer(
-    TNode<RawPtrT> microtask_queue) {
-  // CodeStubAssembler::Print("MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer");
-  return UncheckedCast<RawPtrT>(
-      Load(MachineType::Pointer(), microtask_queue,
-           IntPtrConstant(MicrotaskQueue::kRingBufferOffset)));
-}
-```
 
-可见 GetMicrotaskRingBuffer 的逻辑是从 microtask_queue 对象上，取现偏移量为 MicrotaskQueue::kRingBufferOffset 的字段。
-MicrotaskQueue::kRingBufferOffset [定义如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#22)：
-
-```c++
-#define OFFSET_OF(type, field) \
-  (reinterpret_cast<intptr_t>(&(reinterpret_cast<type*>(16)->field)) - 16)
-
-const size_t MicrotaskQueue::kRingBufferOffset =
-    OFFSET_OF(MicrotaskQueue, ring_buffer_);
-```
-
-MicrotaskQueue::kRingBufferOffset 表示 ring_buffer_ 在 MicrotaskQueue 对象上的偏移量。只要有了偏移量，就可以通过非常规手段访问 ring_buffer_，V8 就是这么干的，这也是本节名称奇技淫巧的由来。
-本节逻辑整理如下：
-
-- C++ 实现了 MicrotaskQueue
-- V8 使用 CodeStubAssembler 对 MicrotaskQueue 做了优化，但底层还是 C++ 版本的 MicrotaskQueue 对象
-- CodeStubAssembler 通过 MicrotaskQueue 对象 + 相应字段的偏移量，来操作 MicrotaskQueue 对象的字段，如 ring_buffer_，capacity，size，start 等
 
 ## async/await
 
