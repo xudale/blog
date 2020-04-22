@@ -136,13 +136,7 @@ const size_t MicrotaskQueue::kRingBufferOffset =
 
 MicrotaskQueue::kRingBufferOffset 表示 ring_buffer_ 在 MicrotaskQueue 对象上的偏移量。只要有了偏移量，就可以通过非常规手段访问 ring_buffer_，V8 就是这么干的，这也是本节名称奇技淫巧的由来。
 
-本节逻辑整理如下：
-
-- C++ 实现了 MicrotaskQueue
-- V8 使用 CodeStubAssembler 对 MicrotaskQueue 做了优化，但底层还是 C++ 版本的 MicrotaskQueue 对象
-- CodeStubAssembler 通过 MicrotaskQueue 对象 + 相应字段的偏移量，来操作 MicrotaskQueue 对象的字段，如 ring_buffer_，capacity，size，start 等
-
-执行 microtask 队列的[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#524)：
+遍历 microtask 队列的方法 RunMicrotasks [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#524)：
 
 ```c++
 TF_BUILTIN(RunMicrotasks, MicrotaskQueueBuiltinsAssembler) {
@@ -195,7 +189,11 @@ TF_BUILTIN(RunMicrotasks, MicrotaskQueueBuiltinsAssembler) {
 
 从 RunMicrotasks 源码来看，整体风格类似于汇编语言写 for 循环，BIND(&loop) 相当于循环体，连续从 ring_buffer 里取出一个 microtask 执行，当循环条件不再满足时，跳转到 BIND(&done)。
 
+本节逻辑整理如下：
 
+- C++ 实现了 MicrotaskQueue
+- V8 使用 CodeStubAssembler 对 MicrotaskQueue 做了优化，但底层还是 C++ 版本的 MicrotaskQueue 对象
+- CodeStubAssembler 通过 MicrotaskQueue 对象 + 相应字段的偏移量，来操作 MicrotaskQueue 对象的字段，如 ring_buffer_，capacity，size，start 等
 
 
 ## async/await
@@ -232,11 +230,11 @@ void BytecodeGenerator::BuildSuspendPoint(int position) {
 }
 ```
 
-虽然看不懂，但配合 V8 生成的字节码，可以互相印证。await 123456 中 123456 是笔者随便写的一个数，目的是为了和字节码对照。
+虽然很难看懂，但配合 V8 生成的字节码，可以互相印证。await 123456 中 123456 是笔者随便写的一个数，目的是为了和字节码对照。
 
 ![awaitByte](https://raw.githubusercontent.com/xudale/blog/master/assets/awaitByte.png)
 
-从字节码来看，和 await 对应的字节码为后 3 行。SuspendGenerator 和 ResumeGenerator，从这两个字节码的命名来推测，JavaScript 代码执行遇到 await，是会暂停执行的，事实也是如此。
+从上图来看，和 await 对应的字节码主要为 SuspendGenerator 和 ResumeGenerator，从这两个字节码的命名来推测，JavaScript 代码执行遇到 await，是会暂停执行的，事实也是如此，下文分析。
 
 > V8 对 async/await 有专门的处理，async/await 是关键字
 >
@@ -324,13 +322,13 @@ Node* InterpreterAssembler::Dispatch() {
 Node* InterpreterAssembler::Advance() { return Advance(CurrentBytecodeSize()); }
 ```
 
-因为 ResumeGenerator 的字节码处理函数，最后一行调用了 Dispatch 来执行下一个字节码，所以程序执行不会暂停。而 SuspendGenerator 最后一行没有调用 Dispatch，所以 V8 在执行 await 生成的字节码 SuspendGenerator 时会暂停当前代码的执行，这是 await 可以暂停程序执行的的根本原因。
+因为 ResumeGenerator 的字节码处理函数，最后一行调用了 Dispatch 来读取执行下一个字节码，所以程序执行不会暂停。几乎所有的字节码处理函数，最后都会调用 Dispatch，让程序一江春水向东流，继续执行。而 SuspendGenerator 最后一行没有调用 Dispatch，所以 V8 在执行 await 生成的字节码 SuspendGenerator 时会暂停当前代码的执行，这是 await 可以暂停程序执行的的根本原因。
 
-V8 在执行 await 123456 产生的 log 如下：
+V8 在执行 await 123456 时产生的 log 如下，下图的 log 包括字节码生成、字节码执行和 microtask 队列：
 
 ![awaitlog](https://raw.githubusercontent.com/xudale/blog/master/assets/awaitlog.png)
 
-> await 会暂停当前程序的执行，babel-polyfill 把 async/await 生成一个含有 switch case 语句的闭包，与 V8 async/await 的执行机制相去甚远
+> await 会暂停当前程序的执行，babel-polyfill 把 async/await 编译成一个含有 switch case 语句的闭包，与 V8 async/await 的执行机制相去甚远
 
 
 ## 总结
