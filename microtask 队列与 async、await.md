@@ -328,12 +328,14 @@ V8 在执行 await 123456 时产生的 log 如下，下图的 log 包括字节�
 
 ![awaitlog](https://raw.githubusercontent.com/xudale/blog/master/assets/awaitlog.png)
 
-从 log 的内容可以看出，await 程序暂停后，在遍历 microtask 的过程中，程序才恢复执行。
+从 log 的内容可以看出，await 程序暂停后，在遍历 microtask 队列的过程中，程序才恢复执行。
 
 > await 会暂停当前程序的执行，babel 把 async/await 编译成一个含有 switch case 语句的闭包，与 V8 async/await 的真实执行机制相去甚远
 
 
 ## 总结
+
+![microtaskflow](https://raw.githubusercontent.com/xudale/blog/master/assets/microtaskflow.png)
 
 
 
