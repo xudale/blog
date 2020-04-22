@@ -328,7 +328,7 @@ V8 在执行 await 123456 时产生的 log 如下，下图的 log 包括字节�
 
 ![awaitlog](https://raw.githubusercontent.com/xudale/blog/master/assets/awaitlog.png)
 
-> await 会暂停当前程序的执行，babel-polyfill 把 async/await 编译成一个含有 switch case 语句的闭包，与 V8 async/await 的执行机制相去甚远
+> await 会暂停当前程序的执行，babel 把 async/await 编译成一个含有 switch case 语句的闭包，与 V8 async/await 的真实执行机制相去甚远
 
 
 ## 总结
