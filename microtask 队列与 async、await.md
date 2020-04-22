@@ -28,7 +28,7 @@ void MicrotaskQueue::EnqueueMicrotask(Microtask microtask) {
   ++size_; // 个数自增 1
 }
 ```
-MicrotaskQueue 类就是 microtask 队列在 V8 中的抽象表示，size_ 表示 microtask 队列中 microtask 的个数，capacity_ 表示 microtask 队列的容量，如果 size_ == capacity_，表示 microtask 队列容量不够，需要扩容。调用 ResizeBuffer 方法给 microtask 队列扩容。
+MicrotaskQueue 类是 microtask 队列在 V8 中的抽象表示，size_ 表示 microtask 队列中 microtask 的个数，capacity_ 表示 microtask 队列的容量，如果 size_ 等于 capacity_，表示 microtask 队列容量不够，需要扩容。调用 ResizeBuffer 方法给 microtask 队列扩容。
 
 如果 microtask 队列容量足够，则向 ring_buffer_ 中存入当前的 microtask，ring_buffer_ 是一个指针，通过 ring_buffer_ 可以找到所有的 microtask，ring_buffer_ 定义如下：
 
@@ -63,7 +63,7 @@ ResizeBuffer 方法的逻辑很简单，总结如下：
 
 > microtask 队列存在于 V8 中，V8 有暴露 microtask 队列的方法给 Node
 >
-> microtask 队列的底层数据结构为数组，或者动态数组，而且只进不出
+> microtask 队列的底层数据结构为数组，或者动态数组
 
 
 ### 奇技淫巧（建议跳过不看）
@@ -234,7 +234,7 @@ void BytecodeGenerator::BuildSuspendPoint(int position) {
 
 ![awaitByte](https://raw.githubusercontent.com/xudale/blog/master/assets/awaitByte.png)
 
-从上图来看，和 await 对应的字节码主要为 SuspendGenerator 和 ResumeGenerator，从这两个字节码的命名来推测，JavaScript 代码执行遇到 await，是会暂停执行的，事实也是如此，下文分析。
+上图为 JavaScript 代码对应的字节码，从上图来看，和 await 对应的字节码主要为 SuspendGenerator 和 ResumeGenerator。从这两个字节码的命名来推测，JavaScript 代码执行遇到 await，是会暂停执行的，事实也是如此，下文分析。
 
 > V8 对 async/await 有专门的处理，async/await 是关键字
 >
