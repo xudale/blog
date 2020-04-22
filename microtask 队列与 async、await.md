@@ -3,7 +3,7 @@
 ## microtask 队列
 
 microtask 队列存在于 V8 中，从 Node 和 V8 源码来看，V8 有暴露 microtask 队列相关的方法给 Node。也就是说 Node 可以操作 V8 的 microtask 队列，比如向 microtask 队列新增一个 microtask，或者把 microtask 队列的每一个 microtask 都执行一遍。
-### 基础逻辑
+### 基础功能
 
 当执行以下代码：
 ```JavaScript
@@ -66,197 +66,87 @@ ResizeBuffer 方法的逻辑很简单，总结如下：
 
 
 ### 奇技淫巧（建议跳过）
-在 JavaScript 中，Boolean 函数有两种调用方式，一种是函数式调用：
 
-```JavaScript
-Boolean('test') // true
-```
-一种是构造函数式调用:
+前端程序员觉得 C++ 是足够快的，V8 觉得 C++ 还不够快，所以 V8 内部使用 CodeStubAssembler，在上文 MicrotaskQueue 的基础上，把 microtask 队列的逻辑，基本又实现了一遍。事实上，Javascript 的内置函数，大多都是用 CodeStubAssembler 实现的。CodeStubAssembler 版本的 EnqueueMicrotask [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#474)：
 
-```JavaScript
-new Boolean('test') // Boolean {true}
-```
-无论是哪种调用方式，在 V8 中都是由同一个函数处理，Boolean 函数由 [Torque](https://v8.dev/docs/torque-builtins) 实现，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/boolean.tq#22)：
 
 ```c++
-BooleanConstructor(context: Context, receiver: Object, ...arguments): Object {
-  const value = SelectBooleanConstant(ToBoolean(arguments[0])); // 将参数转为 true 或 false
-  const newTarget = Parameter(NEW_TARGET_INDEX); // 如果是构造函数式调用 new Boolean()，newTarget 一定有值
-  if (newTarget == Undefined) {
-    // 如果是函数式调用，此处返回
-    return value;
-  }
-  // 如果是构造函数式调用，执行下面逻辑，建议先忽略
-  const target = UnsafeCast<JSFunction>(Parameter(TARGET_INDEX));
-  const map = GetDerivedMap(target, UnsafeCast<JSReceiver>(newTarget));
-  let properties = kEmptyFixedArray;
-  if (IsDictionaryMap(map)) {
-    properties = AllocateNameDictionary(kNameDictionaryInitialCapacity);
-  }
-  const obj = UnsafeCast<JSValue>(AllocateJSObjectFromMap(
-      map, properties, kEmptyFixedArray, kNone, kWithSlackTracking));
-  obj.value = value;
-  return obj;
-}
-```
+TF_BUILTIN(EnqueueMicrotask, MicrotaskQueueBuiltinsAssembler) {
+  TNode<Microtask> microtask =
+      UncheckedCast<Microtask>(Parameter(Descriptor::kMicrotask));
+  TNode<Context> context = CAST(Parameter(Descriptor::kContext));
+  TNode<Context> native_context = LoadNativeContext(context);
+  TNode<RawPtrT> microtask_queue = GetMicrotaskQueue(native_context);
 
-BooleanConstructor 函数的逻辑很简单，通过 ToBoolean(arguments[0]) 将参数转为 true 或 false，如果是函数式调用，立刻返回结果，这也是日常开发中常见的情况。
+  // 下面的 4 个变量，本质上还是 C++ 版本 MicrotaskQueue 里的同名变量，V8 使用对象 + 偏移量的方式，操作 C++ 版本的 MicrotaskQueue 对象
+  TNode<RawPtrT> ring_buffer = GetMicrotaskRingBuffer(microtask_queue); 
+  TNode<IntPtrT> capacity = GetMicrotaskQueueCapacity(microtask_queue);
+  TNode<IntPtrT> size = GetMicrotaskQueueSize(microtask_queue);
+  TNode<IntPtrT> start = GetMicrotaskQueueStart(microtask_queue);
 
-ToBoolean [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/base.tq#2784)：
+  Label if_grow(this, Label::kDeferred);
+  GotoIf(IntPtrEqual(size, capacity), &if_grow);
 
-```c++
-macro ToBoolean(obj: Object): bool {
-  if (BranchIfToBooleanIsTrue(obj)) {
-    return true;
-  } else {
-    return false;
-  }
-}
-```
-
-从源码来看 ToBoolean 函数只是在 BranchIfToBooleanIsTrue 外面包了一层而已，ToBoolean 源码也是由 Torque 实现，Torque 语法类似 Typescript。重头戏 BranchIfToBooleanIsTrue 由 CodeStubAssembler 实现，CodeStubAssembler 整体语法类似汇编，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1328):
-
-```c++
-void CodeStubAssembler::BranchIfToBooleanIsTrue(Node* value, Label* if_true,
-                                                Label* if_false) {
-  // 定义标号
-  Label if_smi(this), if_notsmi(this), if_heapnumber(this, Label::kDeferred),
-      if_bigint(this, Label::kDeferred);
-  // Rule out false {value}. 如果参数是 false，直接返回 false
-  GotoIf(WordEqual(value, FalseConstant()), if_false);
-  // Check if {value} is a Smi or a HeapObject.
-  // 根据 value 是否是 smi，跳转到不同的分支
-  Branch(TaggedIsSmi(value), &if_smi, &if_notsmi);
-  BIND(&if_smi);
+  // |microtask_queue| has an unused slot to store |microtask|.
   {
-    // The {value} is a Smi, only need to check against zero.
-    // 如果 value 等于 0，返回 false，其它返回 true
-    BranchIfSmiEqual(CAST(value), SmiConstant(0), if_false, if_true);
+    // 将 microtask 存入 ring_buffer，这里的代码等同于前文看到的
+    // ring_buffer_[(start_ + size_) % capacity_] = microtask.ptr();
+    // ++size_; // 个数自增 1
+    StoreNoWriteBarrier(MachineType::PointerRepresentation(), ring_buffer,
+                        CalculateRingBufferOffset(capacity, start, size),
+                        BitcastTaggedToWord(microtask));
+    StoreNoWriteBarrier(MachineType::PointerRepresentation(), microtask_queue,
+                        IntPtrConstant(MicrotaskQueue::kSizeOffset),
+                        IntPtrAdd(size, IntPtrConstant(1)));
+    Return(UndefinedConstant());
   }
-  BIND(&if_notsmi);
-  {
-    // Check if {value} is the empty string.
-    // 如果是空字符串，直接返回 false
-    GotoIf(IsEmptyString(value), if_false);
-    // The {value} is a HeapObject, load its map.
-    Node* value_map = LoadMap(value);
-    // Only null, undefined and document.all have the undetectable bit set,
-    // so we can return false immediately when that bit is set.
-    GotoIf(IsUndetectableMap(value_map), if_false);
-    // We still need to handle numbers specially, but all other {value}s
-    // that make it here yield true.
-    GotoIf(IsHeapNumberMap(value_map), &if_heapnumber);
-    Branch(IsBigInt(value), &if_bigint, if_true);
-    BIND(&if_heapnumber);
-    {
-      // Load the floating point value of {value}.
-      Node* value_value = LoadObjectField(value, HeapNumber::kValueOffset,
-                                          MachineType::Float64());
-      // Check if the floating point {value} is neither 0.0, -0.0 nor NaN.
-      Branch(Float64LessThan(Float64Constant(0.0), Float64Abs(value_value)),
-             if_true, if_false);
-    }
-    BIND(&if_bigint);
-    {
-      TNode<BigInt> bigint = CAST(value);
-      TNode<Word32T> bitfield = LoadBigIntBitfield(bigint);
-      TNode<Uint32T> length = DecodeWord32<BigIntBase::LengthBits>(bitfield);
-      Branch(Word32Equal(length, Int32Constant(0)), if_false, if_true);
-    }
-  }
+  // 源码太长，略
 }
 ```
-Label 类似汇编语言的标号，GotoIf 和 Branch 类似汇编语言的条件跳转，smi 是 Small Integer 的缩写，代码逻辑有些冗长。对照 ECMAScript Spec 可以看出代码逻辑与 Spec 的定义是一致的。Spec 中 ToBoolean 定义如下：
 
-![ToBoolean](https://raw.githubusercontent.com/xudale/blog/master/assets/ToBoolean.png)
-
-比如 Spec 中明确规定对于 Number，Return false if argument is +0, −0, or NaN; otherwise return true，V8 对应源码是：
+看过了 C++ 版本的 MicrotaskQueue 的实现。再看 CodeStubAssembler 版本中的变量 ring_buffer，capacity，size，start，有没有似曾相识的感觉呢。其实刚才见到的几个变量，底层还是 C++ 版本中的 MicrotaskQueue 的同名变量。本文只分析下面这行代码，其它代码逻辑类似。
 
 ```c++
-BIND(&if_smi);
-{
-  // The {value} is a Smi, only need to check against zero.
-  // 如果 value 等于 0，返回 false，其它返回 true
-  BranchIfSmiEqual(CAST(value), SmiConstant(0), if_false, if_true);
-}
+  TNode<RawPtrT> ring_buffer = GetMicrotaskRingBuffer(microtask_queue); 
 ```
 
-> V8 中 Boolean 的实现逻辑看似冗长，其实和 ECMAScript Spec 的定义是一一对应的
-> 
-> 在 JavaScript 中无论是 Boolean 还是 new Boolean()，在 V8 中执行的是同一个函数，只是分支和返回值不同
-
-
-## == 运算符
-
-V8 [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#11758)
+GetMicrotaskRingBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#61)：
 
 ```c++
-// ES6 section 7.2.12 Abstract Equality Comparison
-Node* CodeStubAssembler::Equal(Node* left, Node* right, Node* context,
-                               Variable* var_type_feedback) {
-  // 前面省略几十行
-  Label if_notsame(this);
-  GotoIf(WordNotEqual(left, right), &if_notsame);
-  {
-    // {left} and {right} reference the exact same value, yet we need special
-    // treatment for HeapNumber, as NaN is not equal to NaN.
-    GenerateEqual_Same(left, &if_equal, &if_notequal, var_type_feedback);
-  }
-  BIND(&if_notsame);
-  Label if_left_smi(this), if_left_not_smi(this);
-  Branch(TaggedIsSmi(left), &if_left_smi, &if_left_not_smi);
-  BIND(&if_left_smi);
-  {
-    Label if_right_smi(this), if_right_not_smi(this);
-    Branch(TaggedIsSmi(right), &if_right_smi, &if_right_not_smi);
-    BIND(&if_right_smi);
-    {
-      // We have already checked for {left} and {right} being the same value,
-      // so when we get here they must be different Smis.
-      CombineFeedback(var_type_feedback,
-                      CompareOperationFeedback::kSignedSmall);
-      Goto(&if_notequal);
-    }
-  }
-  // 后面省略几百行
+TNode<RawPtrT> MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer(
+    TNode<RawPtrT> microtask_queue) {
+  // CodeStubAssembler::Print("MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer");
+  return UncheckedCast<RawPtrT>(
+      Load(MachineType::Pointer(), microtask_queue,
+           IntPtrConstant(MicrotaskQueue::kRingBufferOffset)));
 }
-
 ```
 
-JavaScript 中的 == 运算符，V8 中相应的源码大约有 400 行，本文不做完全分析，看 ECMAScript Spec 相关的定义后再看源码会简单一些：
-![AbstractEquality](https://raw.githubusercontent.com/xudale/blog/master/assets/AbstractEquality.png)
-从 Spec 来看，大多数情况下，== 运算符是把左右两个操作数都转换成 Number 后，再做比较。虽然 Spec 只定义了少数 case，然而 V8 却需要 400 行代码去实现。如果 Spec 定义了全部可能的 case，需要几千行代码来实现，得不偿失。个人认为这是 Spec 未定义 == 运算符可能出现的所有 case 的原因。
-> 面试中遇到 x == y 应该怎么回答？
-> 
-> 1.JavaScript 有 8 种数据类型，即 Number、String、Boolean、Null、Undefined、Object、Symbol 和 BigInt，两两组合，有 8 * 8 = 64 种 case。ECMAScript Spec 只定义了 10 几种 case，其它 40 多种 case 一律返回 false。所以遇到类似题目只要蒙 false，正确率可达 70%
->
-> 2.null 与 undefined 相等，反之也成立。null 或 undefined 与其它类型绝大多数情况下都不相等，遇到 null/undefined == 0/false/'0' 之类的问题，请回答 false，此时正确率可达 80%
->
-> 3.明显可以转换为 Number 的情况，如 1 == true/'1'，把 == 左右两边的值都转换成 Number 再比较，此时正确率可达 90%。剩下的情况本文已放弃，看官继续努力。总之，只要回答 false 至少就有 80% 的正确率
-
-## === 运算符
-
-=== 运算符最为安全稳妥，因为坑少，只截取一小部分[伪代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12155)：
+可见 GetMicrotaskRingBuffer 的逻辑是从 microtask_queue 对象上，取现偏移量为 MicrotaskQueue::kRingBufferOffset 的字段。
+MicrotaskQueue::kRingBufferOffset [定义如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#22)：
 
 ```c++
-Node* CodeStubAssembler::StrictEqual(Node* lhs, Node* rhs,
-                                     Variable* var_type_feedback) {
-  // Pseudo-code for the algorithm below:
-  //
-  // if (lhs == rhs) {
-  //   if (lhs->IsHeapNumber()) return HeapNumber::cast(lhs)->value() != NaN;
-  //   return true;
-  // }
-}
+#define OFFSET_OF(type, field) \
+  (reinterpret_cast<intptr_t>(&(reinterpret_cast<type*>(16)->field)) - 16)
+
+const size_t MicrotaskQueue::kRingBufferOffset =
+    OFFSET_OF(MicrotaskQueue, ring_buffer_);
 ```
 
-伪代码描述的情况是如果左右两个操作数在 C++ 层面相等，但其中一个操作数是 NaN，则返回 false，即
+MicrotaskQueue::kRingBufferOffset 表示 ring_buffer_ 在 MicrotaskQueue 对象上的偏移量。只要有了偏移量，就可以通过非常规手段访问 ring_buffer_，V8 就是这么干的，这也是本节名称奇技淫巧的由来。
+本节逻辑整理如下：
 
-```JavaScript
-NaN === NaN // false
-```
+- C++ 实现了 MicrotaskQueue
+- V8 使用 CodeStubAssembler 对 MicrotaskQueue 做了优化，但底层还是 C++ 版本的 MicrotaskQueue 对象
+- CodeStubAssembler 通过 MicrotaskQueue 对象 + 相应字段的偏移量，来进行 microtask 相关的操作，如 microtask 进入队列，执行 microtask 队列中全部的 microtask
 
-这应该是 === 运算符唯一的一个坑点。
+## async/await
+
+### 生成字节码
+### 执行字节码
+
+
+
 
 ## 总结
 
