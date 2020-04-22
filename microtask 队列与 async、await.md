@@ -138,11 +138,51 @@ MicrotaskQueue::kRingBufferOffset 表示 ring_buffer_ 在 MicrotaskQueue 对象�
 
 - C++ 实现了 MicrotaskQueue
 - V8 使用 CodeStubAssembler 对 MicrotaskQueue 做了优化，但底层还是 C++ 版本的 MicrotaskQueue 对象
-- CodeStubAssembler 通过 MicrotaskQueue 对象 + 相应字段的偏移量，来进行 microtask 相关的操作，如 microtask 进入队列，执行 microtask 队列中全部的 microtask
+- CodeStubAssembler 通过 MicrotaskQueue 对象 + 相应字段的偏移量，来操作 MicrotaskQueue 对象的字段，如 ring_buffer_，capacity，size，start 等
 
 ## async/await
 
+```JavaScript
+async function test() {
+  let res = await 123456;
+  console.log(res)
+}
+
+test()
+```
+本节以上面的简单 JavaScript 代码为例，分析 async/await 的执行机制。
 ### 生成字节码
+
+生成 await 123456 的字节码的[代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/interpreter/bytecode-generator.cc#3805)：
+```c++
+void BytecodeGenerator::BuildSuspendPoint(int position) {
+  const int suspend_id = suspend_count_++;
+
+  RegisterList registers = register_allocator()->AllLiveRegisters();
+
+  // Save context, registers, and state. This bytecode then returns the value
+  // in the accumulator.
+  builder()->SetExpressionPosition(position);
+  builder()->SuspendGenerator(generator_object(), registers, suspend_id);
+
+  // Upon resume, we continue here.
+  builder()->Bind(generator_jump_table_, suspend_id);
+
+  // Clobbers all registers and sets the accumulator to the
+  // [[input_or_debug_pos]] slot of the generator object.
+  builder()->ResumeGenerator(generator_object(), registers);
+}
+```
+
+虽然看不懂，但配合 V8 生成的字节码，可以互相印证。await 123456 中 123456 是笔者随便写的一个数，目的是为了和字节码对照。
+
+![awaitByte](https://raw.githubusercontent.com/xudale/blog/master/assets/awaitByte.png)
+
+从字节码来看，和 await 对应的字节码有两个，SuspendGenerator 和 ResumeGenerator，至少从这两个字节码的命名推测，JavaScript 代码执行遇到 await，是会暂停执行的。
+
+> V8 对 async/await 有专门的处理，async/await 是关键字
+>
+> async/await 和 generator 共享许多源码，很多文章说 async/await 是 generator 的语法糖，是有一定道理的
 ### 执行字节码
 
 
