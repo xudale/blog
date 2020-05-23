@@ -9,3 +9,5 @@
 
 [microtask 队列与 async/await](https://github.com/xudale/blog/blob/master/microtask%20%E9%98%9F%E5%88%97%E4%B8%8E%20async%E3%80%81await.md "microtask 队列与 async/await")
 
+[typeof 与 Javascript 类型源码分析](https://github.com/xudale/blog/blob/master/typeof%20%E4%B8%8E%20Javascript%20%E7%B1%BB%E5%9E%8B%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.md "typeof 与 Javascript 类型源码分析")
+
