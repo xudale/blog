@@ -219,7 +219,7 @@ Map::kInstanceTypeOffset 的值是 12，表示 instance_type 字段在 Map 对�
 ```c++
   GotoIf(IsBigIntInstanceType(instance_type), &return_bigint);
 ```
-[IsBigIntInstanceType](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#6534) 的定义很简单，判断 instance_type 和 BIGINT_TYPE 是否相等，BIGINT_TYPE 的值是 
+[IsBigIntInstanceType](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#6534) 的定义很简单，判断 instance_type 和 BIGINT_TYPE 是否相等，BIGINT_TYPE 的值是 66。
 ```c++
 TNode<BoolT> CodeStubAssembler::IsBigIntInstanceType(
     SloppyTNode<Int32T> instance_type) {
@@ -254,15 +254,21 @@ TNode<BoolT> CodeStubAssembler::InstanceTypeEqual(
 //      |          |   - elements_kind (bits 3..7)               |
 ```
 
-Map 对象的 instance_type 之下定义了一些 bit，比如 is_callable，is_undetectable 和 is_constructor 等。null 和 undefined 的 is_undetectable bit 是 1，这点很容易理解。但同时也要看到，这些 bit 不是互斥的，一个含有丰富数据的对象，它的 is_undetectable 也可以是 1，比如：
+Map 对象的 instance_type 相邻的字节定义了一些 bit，比如 is_callable，is_undetectable 和 is_constructor 等。null 和 undefined 的 is_undetectable bit 是 1，这点很容易理解。但同时也要看到，这些 bit 不是互斥的，一个含有丰富数据的对象，它的 is_undetectable 也可以是 1，比如：
 
 ![typeof_documentall](https://raw.githubusercontent.com/xudale/blog/master/assets/typeof_documentall.png)
 
 document.all 明显不为空，但 typeof document.all 却返回 undefined，这是因为 document.all 的 Map 对象的 is_undetectable bit 是 1，真坑！
 
-至于前端~~经典~~的 typeof null === 'object'，
+至于前端~~经典~~的 typeof null === 'object'，由于 null 和 undefinde 的 is_undetectable bit 是 1，null 和 undefined 的流程应该是一样的，从源码的写法来看，为了避免出现 typeof null === 'undefined' 这种不合理的情况，V8 对 null 提前做了一层判断，就在 CodeStubAssembler::Typeof 函数比较早的一行。
 
-> 在 V8 中，每一个 Javascript 对象都有一个相关联的 Map 对象
+```c++
+GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball);
+```
+
+null 的 instance_type 与 ODDBALL_TYPE（值为 67）相等，跳转到 if_oddball 标号执行。完美避开了后续的判断，ODDBALL_TYPE 如果翻译成中文的话，可能会叫奇怪类型。至少从 ODDBALL_TYPE 的命名来看，V8 也认为 null 是一个不走寻常路的类型。
+
+> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象的信息
 >
 > Map 对象主要使用 16 bit 的 instance_type 字段描述对应 Javascript 对象的类型
 ## 为什么 1 + 1 = 2，1 + '1' = '11'？
