@@ -273,6 +273,90 @@ null 的 instance_type 与 ODDBALL_TYPE（值为 67）相等，跳转到 if_oddb
 > Map 对象主要使用 16 bit 的 instance_type 字段描述对应 Javascript 对象的类型
 ## 为什么 1 + 1 = 2，1 + '1' = '11'？
 
+1 + 1 = 2 请参考春晚小品。本文只讨论 1 + '1' = '11' 的情况
+
+从 V8 加法的字节码处理函数一路追起，[加法核心代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-number-gen.cc#359)如下，有删减。
+```c++
+TF_BUILTIN(Add, AddStubAssembler) {
+  CodeStubAssembler::Print("TF_BUILTIN(Add");
+  Node* context = Parameter(Descriptor::kContext);
+  // 1.取得两个参数var_left、var_left
+  VARIABLE(var_left, MachineRepresentation::kTagged,
+           Parameter(Descriptor::kLeft));
+  VARIABLE(var_right, MachineRepresentation::kTagged,
+           Parameter(Descriptor::kRight));
+
+  // We might need to loop several times due to ToPrimitive, ToString and/or
+  // ToNumeric conversions.
+  VARIABLE(var_result, MachineRepresentation::kTagged);
+  Variable* loop_vars[2] = {&var_left, &var_right};
+  Label loop(this, 2, loop_vars),
+      string_add_convert_left(this, Label::kDeferred),
+      string_add_convert_right(this, Label::kDeferred),
+      do_bigint_add(this, Label::kDeferred);
+  Goto(&loop);
+  BIND(&loop);
+  {
+    Node* left = var_left.value();
+    Node* right = var_right.value();
+
+    Label if_left_smi(this), if_left_heapobject(this);
+    // 2.根据 left 的类型，跳转不同的分支，本文 left 是一个小整数，跳转 BIND(&if_left_smi)
+    Branch(TaggedIsSmi(left), &if_left_smi, &if_left_heapobject);
+    BIND(&if_left_smi);
+    {
+      Label if_right_smi(this), if_right_heapobject(this);
+      // 3.根据 right 的类型，跳转不同的分支，本文 right 是字符串，跳转 BIND(&if_right_heapobject) 执行
+      Branch(TaggedIsSmi(right), &if_right_smi, &if_right_heapobject);
+
+      BIND(&if_right_smi);
+      {
+        Label if_overflow(this);
+        TNode<Smi> result = TrySmiAdd(CAST(left), CAST(right), &if_overflow);
+        Return(result);
+
+        BIND(&if_overflow);
+        {
+          var_left_double.Bind(SmiToFloat64(left));
+          var_right_double.Bind(SmiToFloat64(right));
+          Goto(&do_double_add);
+        }
+      }  // if_right_smi
+
+      BIND(&if_right_heapobject);
+      {
+        Node* right_map = LoadMap(right);
+
+        Label if_right_not_number(this, Label::kDeferred);
+        GotoIfNot(IsHeapNumberMap(right_map), &if_right_not_number);
+
+        // {right} is a HeapNumber.
+        var_left_double.Bind(SmiToFloat64(left));
+        var_right_double.Bind(LoadHeapNumberValue(right));
+        Goto(&do_double_add);
+
+        BIND(&if_right_not_number);
+        {
+          CodeStubAssembler::Print("if_right_not_number");
+          Node* right_instance_type = LoadMapInstanceType(right_map);
+          // 4.right 是字符串，跳转 BIND(&string_add_convert_left);
+          GotoIf(IsStringInstanceType(right_instance_type),
+                 &string_add_convert_left);
+          GotoIf(IsBigIntInstanceType(right_instance_type), &do_bigint_add);
+          ConvertAndLoop(&var_right, right_instance_type, &loop, context);
+        }
+      }  // if_right_heapobject
+    }    // if_left_smi
+  }
+  BIND(&string_add_convert_left);
+  {
+    // Convert {left} to a String and concatenate it with the String {right}.
+    // 5.最后执行到了这里，left 转成字符串后，与 right 进行字符串连接
+    TailCallBuiltin(Builtins::kStringAdd_ConvertLeft, context, var_left.value(),
+                    var_right.value());
+  }
+}
+```
 ![microtaskflow](https://raw.githubusercontent.com/xudale/blog/master/assets/microtaskflow.png)
 
 
