@@ -122,7 +122,7 @@ Node* CodeStubAssembler::Typeof(Node* value) {
   GotoIf(IsHeapNumberMap(map), &return_number);
 
   Node* instance_type = LoadMapInstanceType(map);// 2.获取 instance_type 字段
-  // 3.判断 instance_type 是不是函数、对象、字符串、bigint、symbol...，并跳转，返回相应类型字符串
+  // 3.通过 instance_type 判断 value 是不是函数、对象、字符串、bigint、symbol...，并跳转，返回相应类型字符串
 
   GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball);
 
@@ -223,22 +223,48 @@ Map::kInstanceTypeOffset 的值是 12，表示 instance_type 字段在 Map 对�
 ```c++
 TNode<BoolT> CodeStubAssembler::IsBigIntInstanceType(
     SloppyTNode<Int32T> instance_type) {
-    // std::cout << "BIGINT_TYPE is " << (int)BIGINT_TYPE << std::endl;
   return InstanceTypeEqual(instance_type, BIGINT_TYPE);
 }
+
+TNode<BoolT> CodeStubAssembler::InstanceTypeEqual(
+    SloppyTNode<Int32T> instance_type, int type) {
+  return Word32Equal(instance_type, Int32Constant(type));
+}
+```
+```c++
+// +----+----------+---------------------------------------------+
+// | Int           | The second int field                        |
+//  `---+----------+---------------------------------------------+
+//      | Short    | [instance_type]   本文重点关注                          |
+//      +----------+---------------------------------------------+
+//      | Byte     | [bit_field]                                 |
+//      |          |   - has_non_instance_prototype (bit 0)      |
+//      |          |   - is_callable (bit 1)                     |
+//      |          |   - has_named_interceptor (bit 2)           |
+//      |          |   - has_indexed_interceptor (bit 3)         |
+//      |          |   - is_undetectable (bit 4)                 |
+//      |          |   - is_access_check_needed (bit 5)          |
+//      |          |   - is_constructor (bit 6)                  |
+//      |          |   - has_prototype_slot (bit 7)              |
+//      +----------+---------------------------------------------+
+//      | Byte     | [bit_field2]                                |
+//      |          |   - is_extensible (bit 0)                   |
+//      |          |   - is_prototype_map (bit 1)                |
+//      |          |   - unused bit (bit 2)                      |
+//      |          |   - elements_kind (bits 3..7)               |
 ```
 
+Map 对象的 instance_type 之下定义了一些 bit，比如 is_callable，is_undetectable 和 is_constructor 等。null 和 undefined 的 is_undetectable bit 是 1，这点很容易理解。但同时也要看到，这些 bit 不是互斥的，一个含有丰富数据的对象，它的 is_undetectable 也可以是 1，比如：
 
+![typeof_documentall](https://raw.githubusercontent.com/xudale/blog/master/assets/typeof_documentall.png)
 
-### 基础功能
+document.all 明显不为空，但 typeof document.all 却返回 undefined，这是因为 document.all 的 Map 对象的 is_undetectable bit 是 1，真坑！
 
+至于前端~~经典~~的 typeof null === 'object'，
 
-
-
-
-
-
-
+> 在 V8 中，每一个 Javascript 对象都有一个相关联的 Map 对象
+>
+> Map 对象主要使用 16 bit 的 instance_type 字段描述对应 Javascript 对象的类型
 ## 为什么 1 + 1 = 2，1 + '1' = '11'？
 
 ![microtaskflow](https://raw.githubusercontent.com/xudale/blog/master/assets/microtaskflow.png)
