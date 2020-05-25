@@ -282,7 +282,7 @@ null 的 instance_type 与 ODDBALL_TYPE（值为 67）相等，跳转到 if_oddb
 >
 > null 和 undefined 的共同点是 is_undetectable bit 是 1，区别点在于 null 的 instance_type 是 ODDBALL_TYPE，V8 对 ODDBALL_TYPE（暂译为奇葩类型）做了提前特殊处理
 ## 为什么 1 + 1 = 2，1 + '1' = '11'？
-
+![onePlusOne](https://raw.githubusercontent.com/xudale/blog/master/assets/onePlusOne.png)
 1 + 1 = 2 请参考春晚小品。本文只讨论 1 + '1' = '11' 的情况
 
 既然已经知道每个 Javascript 对象都有与之关联的 Map 对象来描述类型信息，那么只要知道左右两个操作数的类型，就可以判断是做加法还是做字符串相连。
@@ -371,8 +371,8 @@ TF_BUILTIN(Add, AddStubAssembler) {
 }
 ```
 代码逻辑很简单，首先判断左边操作数的类型，是小整数。然后判断右面操作数的类型，是字符串，最后代码把左边的小整数转换成字符串，与右面操作数做字符串连接的逻辑。
-
-![microtaskflow](https://raw.githubusercontent.com/xudale/blog/master/assets/microtaskflow.png)
+## 总结
+![type_save](https://raw.githubusercontent.com/xudale/blog/master/assets/type_save.png)
 
 
 
