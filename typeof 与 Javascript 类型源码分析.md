@@ -1,5 +1,5 @@
 # typeof 与 Javascript 类型源码分析.md
-本文分析 typeof 在 V8 中的实现，及 Javascript 类型相关的源码，版本为 V8 7.7.1。
+本文分析 typeof 及 Javascript 类型相关的源码，版本为 V8 7.7.1。
 ## typeof 源码分析
 
 每一个 Javascript 对象都是 V8 中的 [JSObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#278)，JSObject 继承 JSReceiver：
@@ -7,15 +7,9 @@
 ```c++
 // The JSObject describes real heap allocated JavaScript objects with
 // properties.
-// Note that the map of JSObject changes during execution to enable inline
-// caching.
 class JSObject : public JSReceiver {
  public:
   static bool IsUnmodifiedApiObject(FullObjectSlot o);
-
-  V8_EXPORT_PRIVATE static V8_WARN_UNUSED_RESULT MaybeHandle<JSObject> New(
-      Handle<JSFunction> constructor, Handle<JSReceiver> new_target,
-      Handle<AllocationSite> site);
   // 后面略
 }
 ```
@@ -42,9 +36,6 @@ class JSReceiver : public HeapObject {
 // objects.
 class HeapObject : public Object {
  public:
-  bool is_null() const {
-    return static_cast<Tagged_t>(ptr()) == static_cast<Tagged_t>(kNullAddress);
-  }
   // [map]: Contains a map which contains the object's reflective
   // information.
   inline Map map() const; // 本文的重点
@@ -54,7 +45,7 @@ class HeapObject : public Object {
   // 后面略
 }
 ```
-HeapObject 偏移量为 0 的位置，是 Map 对象的指针，这里的 Map 是一个 C++ 对象，也是本文的主角，[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/map.h#96)：
+HeapObject 偏移量为 0 的位置，是 Map 对象的指针，这里的 Map 不是 ES6 的 Map，而是 V8 中定义的一个 C++ 对象，也是本文的主角，[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/map.h#96)：
 
 ```c++
 // All heap objects have a Map that describes their structure.
@@ -98,15 +89,16 @@ class Map : public HeapObject {
 }
 ```
 
-从 Map 的注释可以知道，Map 存储了关于对象大小、垃圾回收和类型相关的信息。和类型关系最密切的是 instance_type。
+从 Map 的注释可以知道，Map 存储了关于 Javascript 对象的大小、垃圾回收和类型相关的信息。和类型关系最密切的是 instance_type。
 
-以 BigInt 类型举例，当执行以下代码：
+最近知乎偶尔会向笔者推送一些前端培训班的文章，有的文章说 Javascript 有 6 种类型，有的文章说 Javascript 有 7 种类型。笔者以 Javascript 的第 8 种类型 BigInt 举例，当在 d8 中执行以下代码：
+
 ```JavaScript
 let big = 2n
-console.log(typeof big)
+typeof big // bigint
 ```
 
-d8 会打印 big 的类型，返回 bigint。[typeof](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12693) 运算符核心代码如下：
+d8 会打印出变量 big 的类型，即 bigint。[typeof](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12693) 运算符核心代码如下：
 ```c++
 Node* CodeStubAssembler::Typeof(Node* value) {
   VARIABLE(result_var, MachineRepresentation::kTagged);
@@ -122,9 +114,9 @@ Node* CodeStubAssembler::Typeof(Node* value) {
   GotoIf(IsHeapNumberMap(map), &return_number);
 
   Node* instance_type = LoadMapInstanceType(map);// 2.获取 instance_type 字段
-  // 3.通过 instance_type 判断 value 是不是函数、对象、字符串、bigint、symbol...，并跳转，返回相应类型字符串
+  // 3.通过 instance_type 判断 value 是不是函数、对象、字符串、bigint、symbol...，并跳转，返回相应类型的字符串表示
 
-  GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball);
+  GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball);// 先拦截掉奇葩，比如 null
 
   Node* callable_or_undetectable_mask = Word32And(
       LoadMapBitField(map),
@@ -140,7 +132,7 @@ Node* CodeStubAssembler::Typeof(Node* value) {
   GotoIf(IsJSReceiverInstanceType(instance_type), &return_object);
 
   GotoIf(IsStringInstanceType(instance_type), &return_string);
-
+  // 4.由于 2n 是 BigInt 类型，执行下面一行后，跳转 &return_bigint
   GotoIf(IsBigIntInstanceType(instance_type), &return_bigint);
 
   CSA_ASSERT(this, InstanceTypeEqual(instance_type, SYMBOL_TYPE));
@@ -186,6 +178,7 @@ Node* CodeStubAssembler::Typeof(Node* value) {
 
   BIND(&return_bigint);
   {
+    // 5.BigInt 类型执行到这里
     result_var.Bind(HeapConstant(isolate()->factory()->bigint_string()));
     Goto(&return_result);
   }
@@ -195,7 +188,7 @@ Node* CodeStubAssembler::Typeof(Node* value) {
 }
 ```
 
-HeapObject::kMapOffset 的值是 0，表示 Map 对象的指针在 HeapObject 对象上的偏移量。CodeStubAssembler::Typeof 的主要逻辑也很简单。既然要获取变量的类型，首先调用 LoadMap 取对象相关的 Map，[LoadMap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1470) 源码如下：
+CodeStubAssembler::Typeof 的主要逻辑很简单。既然要获取变量的类型，而且已知每一个 Javascript 对象都有一个与之关联的描述类型的 Map 对象，第一步当然是要拿到 Map 对象。V8 调用 LoadMap 来获取 Map，[LoadMap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1470) 源码如下：
 ```c++
 TNode<Map> CodeStubAssembler::LoadMap(SloppyTNode<HeapObject> object) {
   return UncheckedCast<Map>(LoadObjectField(object, HeapObject::kMapOffset,
@@ -203,9 +196,9 @@ TNode<Map> CodeStubAssembler::LoadMap(SloppyTNode<HeapObject> object) {
 }
 ```
 
-HeapObject::kMapOffset 是值是 0，LoadMap 实质上是取对象 object 偏移量为 0 处的指针，也是是 Map 对象的地址。
+HeapObject::kMapOffset 是 V8 通过 C++ 的宏定义的枚举，值是 0，LoadMap 实质上是取参数 object 偏移量为 0 处的指针，也是是 Map 对象的地址。
 
-拿到 Map 对象的地址后，从 Map 对象取 instance_type 字段，(源码如下)[https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1592]：
+拿到 Map 对象的地址后，开始从 Map 对象取 instance_type 字段，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1592)：
 ```c++
 TNode<Int32T> CodeStubAssembler::LoadMapInstanceType(SloppyTNode<Map> map) {
   return UncheckedCast<Int32T>(
@@ -215,11 +208,15 @@ TNode<Int32T> CodeStubAssembler::LoadMapInstanceType(SloppyTNode<Map> map) {
 
 Map::kInstanceTypeOffset 的值是 12，表示 instance_type 字段在 Map 对象上的偏移量。CodeStubAssembler::LoadMapInstanceType 的功能是从 Map 对象上取出 instance_type，instance_type 占用 16 bit 的空间。
 
-取出 instance_type 后，把 instance_type 和函数、对象、字符串、bigint 和 symbol 等类型的 instance_type 做比较，以高级语言描述，其实就是一个有多个分支的 switch case 语句。以本文的 BigInt 为例，下面这行代码会执行：
+取出 instance_type 后，其实也就知道了变量的类型，把 instance_type 和函数、对象、字符串、bigint 和 symbol 等类型的 instance_type 做比较，判断当前变量具体是哪种类型，以跳转到不同的分支。如果用高级语言描述，CodeStubAssembler::Typeof 多数逻辑其实就是一个有多个分支的 switch case 语句。
+
+因为 let big = 2n，所以 big 的类型是 BigInt，跳过前端的多个分支，下面这行代码会执行：
 ```c++
   GotoIf(IsBigIntInstanceType(instance_type), &return_bigint);
 ```
 [IsBigIntInstanceType](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#6534) 的定义很简单，判断 instance_type 和 BIGINT_TYPE 是否相等，BIGINT_TYPE 的值是 66。
+
+
 ```c++
 TNode<BoolT> CodeStubAssembler::IsBigIntInstanceType(
     SloppyTNode<Int32T> instance_type) {
@@ -232,9 +229,18 @@ TNode<BoolT> CodeStubAssembler::InstanceTypeEqual(
 }
 ```
 
-> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象的信息
+big 是 BigInt 类型的变量，IsBigIntInstanceType 返回 true，程序跳转到了标号 &return_bigint 处执行，并最终返回字符串 bigint。
+
+```c++
+BIND(&return_bigint);
+{
+  result_var.Bind(HeapConstant(isolate()->factory()->bigint_string()));
+  Goto(&return_result);
+}
+```
+> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象类型相关的信息，可以把 Map 理解为元数据
 >
-> Map 对象主要使用 16 bit 的 instance_type 字段描述对应 Javascript 对象的类型
+> Map 对象主要使用 16 bit 的 instance_type 字段来描述对应 Javascript 对象的类型
 ## typeof 的两个坑
 ### typeof document.all 等于 undefined
 ```c++
