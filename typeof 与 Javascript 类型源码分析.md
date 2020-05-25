@@ -231,6 +231,12 @@ TNode<BoolT> CodeStubAssembler::InstanceTypeEqual(
   return Word32Equal(instance_type, Int32Constant(type));
 }
 ```
+
+> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象的信息
+>
+> Map 对象主要使用 16 bit 的 instance_type 字段描述对应 Javascript 对象的类型
+## typeof 的两个坑
+### typeof document.all 等于 undefined
 ```c++
 // +----+----------+---------------------------------------------+
 // | Int           | The second int field                        |
@@ -260,6 +266,9 @@ Map 对象的 instance_type 相邻的字节定义了一些 bit，比如 is_calla
 
 document.all 明显不为空，但 typeof document.all 却返回 undefined，这是因为 document.all 的 Map 对象的 is_undetectable bit 是 1，真坑！
 
+### typeof null 等于 object
+
+
 至于前端~~经典~~的 typeof null === 'object'，由于 null 和 undefinde 的 is_undetectable bit 是 1，null 和 undefined 的流程应该是一样的，从源码的写法来看，为了避免出现 typeof null === 'undefined' 这种不合理的情况，V8 对 null 提前做了一层判断，就在 CodeStubAssembler::Typeof 函数比较早的一行。
 
 ```c++
@@ -268,12 +277,16 @@ GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball);
 
 null 的 instance_type 与 ODDBALL_TYPE（值为 67）相等，跳转到 if_oddball 标号执行。完美避开了后续的判断，ODDBALL_TYPE 如果翻译成中文的话，可能会叫奇怪类型。至少从 ODDBALL_TYPE 的命名来看，V8 也认为 null 是一个不走寻常路的类型。
 
-> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象的信息
+
+> 从 Javascript 层面看，null 和 undefined 不是 Javascript 对象，但二者都是 C++ 对象
 >
-> Map 对象主要使用 16 bit 的 instance_type 字段描述对应 Javascript 对象的类型
+> null 和 undefined 的共同点是 is_undetectable bit 是 1，区别点在于 null 的 instance_type 是 ODDBALL_TYPE，V8 对 ODDBALL_TYPE（暂译为奇葩类型）做了提前特殊处理
 ## 为什么 1 + 1 = 2，1 + '1' = '11'？
 
 1 + 1 = 2 请参考春晚小品。本文只讨论 1 + '1' = '11' 的情况
+
+既然已经知道每个 Javascript 对象都有与之关联的 Map 对象来描述类型信息，那么只要知道左右两个操作数的类型，就可以判断是做加法还是做字符串相连。
+
 
 从 V8 加法的字节码处理函数一路追起，[加法核心代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-number-gen.cc#359)如下，有删减。
 ```c++
@@ -357,6 +370,8 @@ TF_BUILTIN(Add, AddStubAssembler) {
   }
 }
 ```
+代码逻辑很简单，首先判断左边操作数的类型，是小整数。然后判断右面操作数的类型，是字符串，最后代码把左边的小整数转换成字符串，与右面操作数做字符串连接的逻辑。
+
 ![microtaskflow](https://raw.githubusercontent.com/xudale/blog/master/assets/microtaskflow.png)
 
 
