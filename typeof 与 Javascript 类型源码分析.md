@@ -45,7 +45,7 @@ class HeapObject : public Object {
   // 后面略
 }
 ```
-HeapObject 偏移量为 0 的位置，是 Map 对象的指针，这里的 Map 不是 ES6 的 Map，而是 V8 中定义的一个 C++ 对象，也是本文的主角，[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/map.h#96)：
+HeapObject 偏移量为 0 的位置，是 Map 对象的指针，这里的 Map 不是 ES6 的 Map，而是 V8 中定义的一个 C++ 对象，本文的主角，[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/map.h#96)：
 
 ```c++
 // All heap objects have a Map that describes their structure.
@@ -91,7 +91,7 @@ class Map : public HeapObject {
 
 从 Map 的注释可以知道，Map 存储了关于 Javascript 对象的大小、垃圾回收和类型相关的信息。和类型关系最密切的是 instance_type。
 
-最近知乎偶尔会向笔者推送一些前端培训班的文章，有的文章说 Javascript 有 6 种类型，有的文章说 Javascript 有 7 种类型。笔者以 Javascript 的第 8 种类型 BigInt 举例，当在 d8 中执行以下代码：
+最近知乎偶尔会向笔者推送一些前端培训班的文章，有的文章说 Javascript 有 6 种类型，有的文章说 Javascript 有 7 种类型。这里笔者以 Javascript 的第 8 种类型 BigInt 举例，当在 d8 中执行以下代码：
 
 ```JavaScript
 let big = 2n
@@ -208,9 +208,9 @@ TNode<Int32T> CodeStubAssembler::LoadMapInstanceType(SloppyTNode<Map> map) {
 
 Map::kInstanceTypeOffset 的值是 12，表示 instance_type 字段在 Map 对象上的偏移量。CodeStubAssembler::LoadMapInstanceType 的功能是从 Map 对象上取出 instance_type，instance_type 占用 16 bit 的空间。
 
-取出 instance_type 后，其实也就知道了变量的类型，把 instance_type 和函数、对象、字符串、bigint 和 symbol 等类型的 instance_type 做比较，判断当前变量具体是哪种类型，以跳转到不同的分支。如果用高级语言描述，CodeStubAssembler::Typeof 多数逻辑其实就是一个有多个分支的 switch case 语句。
+取出 instance_type 后，其实也就知道了变量的类型，把 instance_type 和函数、对象、字符串、bigint 和 symbol 等类型的 instance_type 做比较，判断当前变量具体是哪种类型，然后跳转到不同的分支。如果用高级语言描述，CodeStubAssembler::Typeof 大多数逻辑相当于一个有多个分支的 switch case 语句。
 
-因为 let big = 2n，所以 big 的类型是 BigInt，跳过前端的多个分支，下面这行代码会执行：
+因为 let big = 2n，所以 big 的类型是 BigInt，跳过前面的多个分支，下面这行代码会执行：
 ```c++
   GotoIf(IsBigIntInstanceType(instance_type), &return_bigint);
 ```
