@@ -238,11 +238,14 @@ BIND(&return_bigint);
   Goto(&return_result);
 }
 ```
-> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象类型相关的信息，可以把 Map 理解为元数据
+> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象类型相关的信息，类似元数据
 >
 > Map 对象主要使用 16 bit 的 instance_type 字段来描述对应 Javascript 对象的类型
 ## typeof 的两个坑
 ### typeof document.all 等于 undefined
+![typeof_documentall](https://raw.githubusercontent.com/xudale/blog/master/assets/typeof_documentall.png)
+
+结果有些出乎意料，再看一下 Map 的注释：
 ```c++
 // +----+----------+---------------------------------------------+
 // | Int           | The second int field                        |
@@ -254,7 +257,8 @@ BIND(&return_bigint);
 //      |          |   - is_callable (bit 1)                     |
 //      |          |   - has_named_interceptor (bit 2)           |
 //      |          |   - has_indexed_interceptor (bit 3)         |
-//      |          |   - is_undetectable (bit 4)                 |
+//          document.all，null，undefined的 is_undetectable 为 1            |
+//      |          |   - is_undetectable (bit 4) 
 //      |          |   - is_access_check_needed (bit 5)          |
 //      |          |   - is_constructor (bit 6)                  |
 //      |          |   - has_prototype_slot (bit 7)              |
@@ -266,27 +270,26 @@ BIND(&return_bigint);
 //      |          |   - elements_kind (bits 3..7)               |
 ```
 
-Map 对象的 instance_type 相邻的字节定义了一些 bit，比如 is_callable，is_undetectable 和 is_constructor 等。null 和 undefined 的 is_undetectable bit 是 1，这点很容易理解。但同时也要看到，这些 bit 不是互斥的，一个含有丰富数据的对象，它的 is_undetectable 也可以是 1，比如：
-
-![typeof_documentall](https://raw.githubusercontent.com/xudale/blog/master/assets/typeof_documentall.png)
-
-document.all 明显不为空，但 typeof document.all 却返回 undefined，这是因为 document.all 的 Map 对象的 is_undetectable bit 是 1，真坑！
+Map 对象的 instance_type 相邻的字节定义了一些 bit，比如 is_callable，is_undetectable 和 is_constructor 等。null 和 undefined 的 is_undetectable bit 是 1，这点很容易理解。但同时也要看到，这些 bit 不是互斥的，document.all 虽然不是一个空对象，但它的 Map 对象的 is_undetectable 也是 1，所以才会有 typeof document.all 等于 undefined 的不合理情况。
 
 ### typeof null 等于 object
 
 
-至于前端~~经典~~的 typeof null === 'object'，由于 null 和 undefinde 的 is_undetectable bit 是 1，null 和 undefined 的流程应该是一样的，从源码的写法来看，为了避免出现 typeof null === 'undefined' 这种不合理的情况，V8 对 null 提前做了一层判断，就在 CodeStubAssembler::Typeof 函数比较早的一行。
+至于前端~~经典~~的 typeof null === 'object'，由于 null 和 undefinde 的 is_undetectable bit 同为 1，null 和 undefined 的流程应该是一样的，从源码的写法来看，为了避免出现 typeof null === 'undefined' 这种不合规范的情况，V8 对 null 提前做了一层判断，就在 CodeStubAssembler::Typeof 函数比较早的一行。
 
 ```c++
 GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball);
 ```
 
-null 的 instance_type 与 ODDBALL_TYPE（值为 67）相等，跳转到 if_oddball 标号执行。完美避开了后续的判断，ODDBALL_TYPE 如果翻译成中文的话，可能会叫奇怪类型。至少从 ODDBALL_TYPE 的命名来看，V8 也认为 null 是一个不走寻常路的类型。
+null 的 instance_type 是 ODDBALL_TYPE（值为 67），跳转到 if_oddball 标号执行。完美避开了后续的判断，ODDBALL_TYPE 如果翻译成中文的话，可能会叫奇怪类型。至少从 ODDBALL_TYPE 的命名来看，V8 也认为 null 是一个不走寻常路的类型。
+
+如果在 V8 中把 GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball) 这一行代码删掉，typeof null 会返回 undefined。
 
 
-> 从 Javascript 层面看，null 和 undefined 不是 Javascript 对象，但二者都是 C++ 对象
+> null 和 undefined 虽然不是 Javascript 对象，却是 C++ 对象
 >
-> null 和 undefined 的共同点是 is_undetectable bit 是 1，区别点在于 null 的 instance_type 是 ODDBALL_TYPE，V8 对 ODDBALL_TYPE（暂译为奇葩类型）做了提前特殊处理
+> null 和 undefined 的共同点是 is_undetectable bit 是 1，区别点在于 null 的 instance_type 是 ODDBALL_TYPE，CodeStubAssembler::Typeof 对 ODDBALL_TYPE（暂译为奇葩类型）做了特殊处理，提前返回
+
 ## 为什么 1 + 1 = 2，1 + '1' = '11'？
 ![onePlusOne](https://raw.githubusercontent.com/xudale/blog/master/assets/onePlusOne.png)
 1 + 1 = 2 请参考春晚小品。本文只讨论 1 + '1' = '11' 的情况
