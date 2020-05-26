@@ -292,15 +292,11 @@ null 的 instance_type 是 ODDBALL_TYPE（值为 67），跳转到 if_oddball �
 
 ## 为什么 1 + 1 = 2，1 + '1' = '11'？
 ![onePlusOne](https://raw.githubusercontent.com/xudale/blog/master/assets/onePlusOne.png)
-1 + 1 = 2 请参考春晚小品。本文只讨论 1 + '1' = '11' 的情况
+本文只讨论 1 + '1' = '11' 的情况。
 
-既然已经知道每个 Javascript 对象都有与之关联的 Map 对象来描述类型信息，那么只要知道左右两个操作数的类型，就可以判断是做加法还是做字符串相连。
-
-
-从 V8 加法的字节码处理函数一路追起，[加法核心代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-number-gen.cc#359)如下，有删减。
+既然已经知道每个 Javascript 对象都有与之关联的 Map 对象来描述类型信息，那么只要知道左右两个操作数的类型，就可以判断是做加法还是做字符串相连。从 V8 加法的字节码处理函数一路追起，[加法核心代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-number-gen.cc#359)如下，有删减。
 ```c++
 TF_BUILTIN(Add, AddStubAssembler) {
-  CodeStubAssembler::Print("TF_BUILTIN(Add");
   Node* context = Parameter(Descriptor::kContext);
   // 1.取得两个参数var_left、var_left
   VARIABLE(var_left, MachineRepresentation::kTagged,
