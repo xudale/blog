@@ -1,8 +1,8 @@
 # typeof 与 Javascript 类型源码分析.md
-本文分析 typeof 及 Javascript 类型相关的源码，版本为 V8 7.7.1。
+本文分析 typeof 及 Javascript 类型相关的源码，版本为 V8 7.7-lkgr。
 ## typeof 源码分析
 
-每一个 Javascript 对象都是 V8 中的 [JSObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#278)，JSObject 继承 JSReceiver：
+每一个 Javascript 对象都是 V8 中的 [JSObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#278)，JSObject 继承 JSReceiver：
 
 ```c++
 // The JSObject describes real heap allocated JavaScript objects with
@@ -14,7 +14,7 @@ class JSObject : public JSReceiver {
 }
 ```
 
-[JSReceiver](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#24) 继承 HeapObject：
+[JSReceiver](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#24) 继承 HeapObject：
 
 ```c++
 // JSReceiver includes types on which properties can be defined, i.e.,
@@ -29,7 +29,7 @@ class JSReceiver : public HeapObject {
 ```
 
 
-所以每一个 Javascript 对象也是 [HeapObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/heap-object.h#21)。
+所以每一个 Javascript 对象也是 [HeapObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/heap-object.h#21)。
 
 ```c++
 // HeapObject is the superclass for all classes describing heap allocated
@@ -45,7 +45,7 @@ class HeapObject : public Object {
   // 后面略
 }
 ```
-HeapObject 偏移量为 0 的位置，是 Map 对象的指针，这里的 Map 不是 ES6 的 Map，而是 V8 中定义的一个 C++ 对象，本文的主角，[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/map.h#96)：
+HeapObject 偏移量为 0 的位置，是 Map 对象的指针，这里的 Map 不是 ES6 的 Map，而是 V8 中定义的一个 C++ 对象，本文的主角，[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/map.h#96)：
 
 ```c++
 // All heap objects have a Map that describes their structure.
@@ -98,7 +98,7 @@ let big = 2n
 typeof big // bigint
 ```
 
-d8 会打印出变量 big 的类型，即 bigint。[typeof](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12693) 运算符核心代码如下：
+d8 会打印出变量 big 的类型，即 bigint。[typeof](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#12693) 运算符核心代码如下：
 ```c++
 Node* CodeStubAssembler::Typeof(Node* value) {
   VARIABLE(result_var, MachineRepresentation::kTagged);
@@ -188,7 +188,7 @@ Node* CodeStubAssembler::Typeof(Node* value) {
 }
 ```
 
-CodeStubAssembler::Typeof 的主要逻辑很简单。既然要获取变量的类型，而且已知每一个 Javascript 对象都有一个与之关联的描述类型的 Map 对象，第一步当然是要拿到 Map 对象。V8 调用 LoadMap 来获取 Map，[LoadMap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1470) 源码如下：
+CodeStubAssembler::Typeof 的主要逻辑很简单。既然要获取变量的类型，而且已知每一个 Javascript 对象都有一个与之关联的描述类型的 Map 对象，第一步当然是要拿到 Map 对象。V8 调用 LoadMap 来获取 Map，[LoadMap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#1470) 源码如下：
 ```c++
 TNode<Map> CodeStubAssembler::LoadMap(SloppyTNode<HeapObject> object) {
   return UncheckedCast<Map>(LoadObjectField(object, HeapObject::kMapOffset,
@@ -198,7 +198,7 @@ TNode<Map> CodeStubAssembler::LoadMap(SloppyTNode<HeapObject> object) {
 
 HeapObject::kMapOffset 是 V8 通过 C++ 的宏定义的枚举，值是 0，LoadMap 实质上是取参数 object 偏移量为 0 处的指针，也是是 Map 对象的地址。
 
-拿到 Map 对象的地址后，开始从 Map 对象取 instance_type 字段，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1592)：
+拿到 Map 对象的地址后，开始从 Map 对象取 instance_type 字段，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#1592)：
 ```c++
 TNode<Int32T> CodeStubAssembler::LoadMapInstanceType(SloppyTNode<Map> map) {
   return UncheckedCast<Int32T>(
@@ -214,7 +214,7 @@ Map::kInstanceTypeOffset 的值是 12，表示 instance_type 字段在 Map 对�
 ```c++
   GotoIf(IsBigIntInstanceType(instance_type), &return_bigint);
 ```
-[IsBigIntInstanceType](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#6534) 的定义很简单，判断 instance_type 和 BIGINT_TYPE 是否相等，BIGINT_TYPE 的值是 66。
+[IsBigIntInstanceType](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#6534) 的定义很简单，判断 instance_type 和 BIGINT_TYPE 是否相等，BIGINT_TYPE 的值是 66。
 
 
 ```c++
@@ -294,7 +294,7 @@ null 的 instance_type 是 ODDBALL_TYPE（值为 67），跳转到 if_oddball �
 ![onePlusOne](https://raw.githubusercontent.com/xudale/blog/master/assets/onePlusOne.png)
 本文只讨论 1 + '1' = '11' 的情况。
 
-既然已经知道每个 Javascript 对象都有与之关联的 Map 对象来描述类型信息，那么只要知道左右两个操作数的类型，就可以判断是做加法还是做字符串相连。从 V8 加法的字节码处理函数一路追起，[加法核心代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-number-gen.cc#359)如下，有删减。
+既然已经知道每个 Javascript 对象都有与之关联的 Map 对象来描述类型信息，那么只要知道左右两个操作数的类型，就可以判断是做加法还是做字符串相连。从 V8 加法的字节码处理函数一路追起，[加法核心代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-number-gen.cc#359)如下，有删减。
 ```c++
 TF_BUILTIN(Add, AddStubAssembler) {
   Node* context = Parameter(Descriptor::kContext);
