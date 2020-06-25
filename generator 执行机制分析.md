@@ -1,174 +1,37 @@
-# microtask 队列与 async/await 源码分析
-本文先分析 microtask 队列，后分析 async/await，版本为 V8 7.7.1。
-## microtask 队列
-
-microtask 队列存在于 V8 中，从 Node 和 V8 源码来看，V8 有暴露 microtask 队列的相关方法给 Node。也就是说 Node 可以控制 V8 的 microtask 队列，比如向 microtask 队列新增一个 microtask，或者遍历 microtask 队列。
-### 基础功能
-
-当执行以下代码：
-```JavaScript
-Promise.resolve('abc').then(res => console.log(res))
-```
-
-V8 的 microtask 队列里会新增一个 microtask，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#100)：
-microtask 队列容量足够，则向 ring_buffer_ 中存入当前的 microtask，ring_buffer_ 是一个指针，通过 ring_buffer_ 可以找到所有的 microtask，ring_buffer_ 定义如下：
-
-```c++
-Address* ring_buffer_ = nullptr;
-```
-
-上文提到的给 microtask 队列扩容的 ResizeBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#261)：
-
-
-ResizeBuffer 方法的逻辑很简单，总结如下：
-
-- 新申请一个容量更大的数组，new_ring_buffer 去指向它
-- 把 ring_buffer_ 指向的全部 microtask，复制到 new_ring_buffer
-- 释放 ring_buffer_ 指向的内存
-- ring_buffer_ 指向新的数组
-- 容量更新为新的容量
-
-> microtask 队列存在于 V8 中，V8 有暴露 microtask 队列的方法给 Node
->
-> microtask 队列的底层数据结构为数组，或者动态数组
-
-
-### 奇技淫巧（建议跳过不看）
-
-前端程序员觉得 C++ 是足够快的，V8 觉得 C++ 还不够快，所以 V8 内部使用 CodeStubAssembler 语言，在上文 MicrotaskQueue 的基础上，进一步优化了 microtask 队列的性能。事实上，Javascript 的内置函数，大多都是用 CodeStubAssembler 实现的。CodeStubAssembler 版本的 EnqueueMicrotask [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#474)：
-
-
-看过了 C++ 版本的 MicrotaskQueue 的实现。再看 CodeStubAssembler 版本中的变量 ring_buffer，capacity，size，start，有没有似曾相识的感觉呢。其实刚才见到的几个变量，底层还是 C++ 版本中的 MicrotaskQueue 的同名变量。本文只分析下面这行代码，其它代码逻辑类似。
-
-```c++
-  TNode<RawPtrT> ring_buffer = GetMicrotaskRingBuffer(microtask_queue); 
-```
-
-GetMicrotaskRingBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#61)：
-
-```c++
-TNode<RawPtrT> MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer(
-    TNode<RawPtrT> microtask_queue) {
-  // CodeStubAssembler::Print("MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer");
-  return UncheckedCast<RawPtrT>(
-      Load(MachineType::Pointer(), microtask_queue,
-           IntPtrConstant(MicrotaskQueue::kRingBufferOffset)));
-}
-```
-
-可见 GetMicrotaskRingBuffer 的逻辑是从 microtask_queue 对象上，读偏移量为 MicrotaskQueue::kRingBufferOffset 的字段。
-MicrotaskQueue::kRingBufferOffset [定义如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#22)：
-
-```c++
-#define OFFSET_OF(type, field) \
-  (reinterpret_cast<intptr_t>(&(reinterpret_cast<type*>(16)->field)) - 16)
-
-const size_t MicrotaskQueue::kRingBufferOffset =
-    OFFSET_OF(MicrotaskQueue, ring_buffer_);
-```
-
-MicrotaskQueue::kRingBufferOffset 表示 ring_buffer_ 在 MicrotaskQueue 对象上的偏移量。只要有了偏移量，就可以通过非常规手段访问 ring_buffer_，V8 就是这么干的，这也是本节名称奇技淫巧的由来。
-
-遍历 microtask 队列的方法 RunMicrotasks [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#524)：
-
-
-从 RunMicrotasks 源码来看，整体风格类似于汇编语言写 for 循环，BIND(&loop) 相当于循环体，连续从 ring_buffer 里取出一个 microtask 执行，当循环条件不再满足时，跳转到 BIND(&done)。
-
-本节逻辑整理如下：
-
-- C++ 实现了 MicrotaskQueue
-- V8 使用 CodeStubAssembler 对 MicrotaskQueue 做了优化，但底层还是 C++ 版本的 MicrotaskQueue 对象
-- CodeStubAssembler 通过 MicrotaskQueue 对象 + 相应字段的偏移量，来操作 MicrotaskQueue 对象的字段，如 ring_buffer_，capacity，size，start 等
-
-
-## async/await
+# generator 执行机制分析
+本文以下面代码为例
 
 ```JavaScript
-async function test() {
-  let res = await 123456;
-  console.log(res)
+function* test() {
+  yield 123456
 }
-
-test()
+let iterator = test()
+iterator.next()
 ```
 
-
-虽然很难看懂，但配合 V8 生成的字节码，可以互相印证。await 123456 中 123456 是笔者随便写的一个数，目的是为了和字节码对照。
-
-![awaitByte](https://raw.githubusercontent.com/xudale/blog/master/assets/awaitByte.png)
-
-上图为 JavaScript 代码对应的字节码，从上图来看，和 await 对应的字节码主要为 SuspendGenerator 和 ResumeGenerator。从这两个字节码的命名来推测，JavaScript 代码执行遇到 await，是会暂停执行的，事实也是如此，下文分析。
-
-> V8 对 async/await 有专门的处理，async/await 是关键字
->
-> async/await 和 generator 共享许多源码，很多文章说 async/await 是 generator 的语法糖，是有一定道理的
-### 执行字节码
-
-字节码 SuspendGenerator 的处理函数，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/interpreter/interpreter-generator.cc#3168)：
+分析 generator 执行机制相关的源码，版本为 V8 7.7.1。
+## 初始化——看不见的 yield
 
 
 
-从源码来看，V8 在执行字节码 SuspendGenerator 时，多次调用 StoreObjectField，保存当前的状态。目前还看不出来代码会暂停执行，这里要注意下代码的最后一行。对比 [ResumeGenerator](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/interpreter/interpreter-generator.cc#3246) 的字节码处理函数来看：
-
-```c++
-IGNITION_HANDLER(ResumeGenerator, InterpreterAssembler) {
-  Node* generator = LoadRegisterAtOperandIndex(0);
-  Node* closure = LoadRegister(Register::function_closure());
-  RegListNodePair registers = GetRegisterListAtOperandIndex(1);
-
-  Node* shared =
-      LoadObjectField(closure, JSFunction::kSharedFunctionInfoOffset);
-  TNode<Int32T> formal_parameter_count = UncheckedCast<Int32T>(
-      LoadObjectField(shared, SharedFunctionInfo::kFormalParameterCountOffset,
-                      MachineType::Uint16()));
-
-  ImportRegisterFile(
-      CAST(LoadObjectField(generator,
-                           JSGeneratorObject::kParametersAndRegistersOffset)),
-      registers, formal_parameter_count);
-
-  // Return the generator's input_or_debug_pos in the accumulator.
-  SetAccumulator(
-      LoadObjectField(generator, JSGeneratorObject::kInputOrDebugPosOffset));
-
-  Dispatch(); // 注意最后一行
-}
-```
-
-ResumeGenerator 多次调用 LoadObjectField，恢复之前代码的执行。ResumeGenerator 就像是 SuspendGenerator 的反函数，一个存储当前代码的执行状态，一个恢复当前代码的执行状态。
-
-ResumeGenerator 的最后一行是 Dispatch，Dispatch 的功能是取出下一条要执行的字节码，然后执行，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/interpreter/interpreter-assembler.cc#1396)
-
-```c++
-Node* InterpreterAssembler::Dispatch() {
-  Comment("========= Dispatch");
-  DCHECK_IMPLIES(Bytecodes::MakesCallAlongCriticalPath(bytecode_), made_call_);
-  Node* target_offset = Advance();
-  Node* target_bytecode = LoadBytecode(target_offset);
-
-  if (Bytecodes::IsStarLookahead(bytecode_, operand_scale_)) {
-    target_bytecode = StarDispatchLookahead(target_bytecode);
-  }
-  return DispatchToBytecode(target_bytecode, BytecodeOffset());
-}
-
-Node* InterpreterAssembler::Advance() { return Advance(CurrentBytecodeSize()); }
-```
-
-因为 ResumeGenerator 的字节码处理函数，最后一行调用了 Dispatch 来读取执行下一个字节码，所以程序执行不会暂停。几乎所有的字节码处理函数，最后都会调用 Dispatch，让程序一江春水向东流，继续执行。而 SuspendGenerator 最后一行没有调用 Dispatch，所以 V8 在执行 await 生成的字节码 SuspendGenerator 时会暂停当前代码的执行，这是 await 可以暂停程序执行的的根本原因。
-
-V8 在执行 await 123456 时产生的 log 如下，下图的 log 包括字节码生成、字节码执行和 microtask 队列：
-
-![awaitlog](https://raw.githubusercontent.com/xudale/blog/master/assets/awaitlog.png)
-
-从 log 的内容可以看出，await 程序暂停后，在遍历 microtask 队列的过程中，程序才恢复执行。
-
-> await 会暂停当前程序的执行，babel 把 async/await 编译成一个含有 switch case 语句的闭包，与 V8 async/await 的真实执行机制相去甚远
 
 
-## 总结
 
-![microtaskflow](https://raw.githubusercontent.com/xudale/blog/master/assets/microtaskflow.png)
+
+
+
+
+## iterator.next() 
+
+
+
+
+
+## async/await 与 generator 的关系
+
+## 3 种函数
+
+
 
 
 
