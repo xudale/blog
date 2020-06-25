@@ -1,8 +1,8 @@
 # typeof 与 Javascript 类型源码分析.md
-本文分析 typeof 及 Javascript 类型相关的源码，版本为 V8 7.7.1。
+本文分析 typeof 及 Javascript 类型相关的源码，版本为 V8 7.7-lkgr。
 ## typeof 源码分析
 
-每一个 Javascript 对象都是 V8 中的 [JSObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#278)，JSObject 继承 JSReceiver：
+每一个 Javascript 对象都是 V8 中的 [JSObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#278)，JSObject 继承 JSReceiver：
 
 ```c++
 // The JSObject describes real heap allocated JavaScript objects with
@@ -14,7 +14,7 @@ class JSObject : public JSReceiver {
 }
 ```
 
-[JSReceiver](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#24) 继承 HeapObject：
+[JSReceiver](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#24) 继承 HeapObject：
 
 ```c++
 // JSReceiver includes types on which properties can be defined, i.e.,
@@ -29,7 +29,7 @@ class JSReceiver : public HeapObject {
 ```
 
 
-所以每一个 Javascript 对象也是 [HeapObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/heap-object.h#21)。
+所以每一个 Javascript 对象也是 [HeapObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/heap-object.h#21)。
 
 ```c++
 // HeapObject is the superclass for all classes describing heap allocated
@@ -45,7 +45,7 @@ class HeapObject : public Object {
   // 后面略
 }
 ```
-HeapObject 偏移量为 0 的位置，是 Map 对象的指针，这里的 Map 不是 ES6 的 Map，而是 V8 中定义的一个 C++ 对象，也是本文的主角，[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/map.h#96)：
+HeapObject 偏移量为 0 的位置，是 Map 对象的指针，这里的 Map 不是 ES6 的 Map，而是 V8 中定义的一个 C++ 对象，本文的主角，[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/map.h#96)：
 
 ```c++
 // All heap objects have a Map that describes their structure.
@@ -91,14 +91,14 @@ class Map : public HeapObject {
 
 从 Map 的注释可以知道，Map 存储了关于 Javascript 对象的大小、垃圾回收和类型相关的信息。和类型关系最密切的是 instance_type。
 
-最近知乎偶尔会向笔者推送一些前端培训班的文章，有的文章说 Javascript 有 6 种类型，有的文章说 Javascript 有 7 种类型。笔者以 Javascript 的第 8 种类型 BigInt 举例，当在 d8 中执行以下代码：
+最近知乎偶尔会向笔者推送一些前端培训班的文章，有的文章说 Javascript 有 6 种类型，有的文章说 Javascript 有 7 种类型。这里笔者以 Javascript 的第 8 种类型 BigInt 举例，当在 d8 中执行以下代码：
 
 ```JavaScript
 let big = 2n
 typeof big // bigint
 ```
 
-d8 会打印出变量 big 的类型，即 bigint。[typeof](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12693) 运算符核心代码如下：
+d8 会打印出变量 big 的类型，即 bigint。[typeof](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#12693) 运算符核心代码如下：
 ```c++
 Node* CodeStubAssembler::Typeof(Node* value) {
   VARIABLE(result_var, MachineRepresentation::kTagged);
@@ -188,7 +188,7 @@ Node* CodeStubAssembler::Typeof(Node* value) {
 }
 ```
 
-CodeStubAssembler::Typeof 的主要逻辑很简单。既然要获取变量的类型，而且已知每一个 Javascript 对象都有一个与之关联的描述类型的 Map 对象，第一步当然是要拿到 Map 对象。V8 调用 LoadMap 来获取 Map，[LoadMap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1470) 源码如下：
+CodeStubAssembler::Typeof 的主要逻辑很简单。既然要获取变量的类型，而且已知每一个 Javascript 对象都有一个与之关联的描述类型的 Map 对象，第一步当然是要拿到 Map 对象。V8 调用 LoadMap 来获取 Map，[LoadMap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#1470) 源码如下：
 ```c++
 TNode<Map> CodeStubAssembler::LoadMap(SloppyTNode<HeapObject> object) {
   return UncheckedCast<Map>(LoadObjectField(object, HeapObject::kMapOffset,
@@ -198,7 +198,7 @@ TNode<Map> CodeStubAssembler::LoadMap(SloppyTNode<HeapObject> object) {
 
 HeapObject::kMapOffset 是 V8 通过 C++ 的宏定义的枚举，值是 0，LoadMap 实质上是取参数 object 偏移量为 0 处的指针，也是是 Map 对象的地址。
 
-拿到 Map 对象的地址后，开始从 Map 对象取 instance_type 字段，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1592)：
+拿到 Map 对象的地址后，开始从 Map 对象取 instance_type 字段，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#1592)：
 ```c++
 TNode<Int32T> CodeStubAssembler::LoadMapInstanceType(SloppyTNode<Map> map) {
   return UncheckedCast<Int32T>(
@@ -208,13 +208,13 @@ TNode<Int32T> CodeStubAssembler::LoadMapInstanceType(SloppyTNode<Map> map) {
 
 Map::kInstanceTypeOffset 的值是 12，表示 instance_type 字段在 Map 对象上的偏移量。CodeStubAssembler::LoadMapInstanceType 的功能是从 Map 对象上取出 instance_type，instance_type 占用 16 bit 的空间。
 
-取出 instance_type 后，其实也就知道了变量的类型，把 instance_type 和函数、对象、字符串、bigint 和 symbol 等类型的 instance_type 做比较，判断当前变量具体是哪种类型，以跳转到不同的分支。如果用高级语言描述，CodeStubAssembler::Typeof 多数逻辑其实就是一个有多个分支的 switch case 语句。
+取出 instance_type 后，其实也就知道了变量的类型，把 instance_type 和函数、对象、字符串、bigint 和 symbol 等类型的 instance_type 做比较，判断当前变量具体是哪种类型，然后跳转到不同的分支。如果用高级语言描述，CodeStubAssembler::Typeof 大多数逻辑相当于一个有多个分支的 switch case 语句。
 
-因为 let big = 2n，所以 big 的类型是 BigInt，跳过前端的多个分支，下面这行代码会执行：
+因为 let big = 2n，所以 big 的类型是 BigInt，跳过前面的多个分支，下面这行代码会执行：
 ```c++
   GotoIf(IsBigIntInstanceType(instance_type), &return_bigint);
 ```
-[IsBigIntInstanceType](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#6534) 的定义很简单，判断 instance_type 和 BIGINT_TYPE 是否相等，BIGINT_TYPE 的值是 66。
+[IsBigIntInstanceType](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#6534) 的定义很简单，判断 instance_type 和 BIGINT_TYPE 是否相等，BIGINT_TYPE 的值是 66。
 
 
 ```c++
@@ -238,11 +238,14 @@ BIND(&return_bigint);
   Goto(&return_result);
 }
 ```
-> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象类型相关的信息，可以把 Map 理解为元数据
+> 在 V8 中，每一个 Javascript 对象都有一个与之关联的 Map 对象，Map 对象描述 Javascript 对象类型相关的信息，类似元数据
 >
 > Map 对象主要使用 16 bit 的 instance_type 字段来描述对应 Javascript 对象的类型
 ## typeof 的两个坑
 ### typeof document.all 等于 undefined
+![typeof_documentall](https://raw.githubusercontent.com/xudale/blog/master/assets/typeof_documentall.png)
+
+结果有些出乎意料，再看一下 Map 的注释：
 ```c++
 // +----+----------+---------------------------------------------+
 // | Int           | The second int field                        |
@@ -254,7 +257,8 @@ BIND(&return_bigint);
 //      |          |   - is_callable (bit 1)                     |
 //      |          |   - has_named_interceptor (bit 2)           |
 //      |          |   - has_indexed_interceptor (bit 3)         |
-//      |          |   - is_undetectable (bit 4)                 |
+//          document.all，null，undefined的 is_undetectable 为 1            |
+//      |          |   - is_undetectable (bit 4) 
 //      |          |   - is_access_check_needed (bit 5)          |
 //      |          |   - is_constructor (bit 6)                  |
 //      |          |   - has_prototype_slot (bit 7)              |
@@ -266,38 +270,33 @@ BIND(&return_bigint);
 //      |          |   - elements_kind (bits 3..7)               |
 ```
 
-Map 对象的 instance_type 相邻的字节定义了一些 bit，比如 is_callable，is_undetectable 和 is_constructor 等。null 和 undefined 的 is_undetectable bit 是 1，这点很容易理解。但同时也要看到，这些 bit 不是互斥的，一个含有丰富数据的对象，它的 is_undetectable 也可以是 1，比如：
-
-![typeof_documentall](https://raw.githubusercontent.com/xudale/blog/master/assets/typeof_documentall.png)
-
-document.all 明显不为空，但 typeof document.all 却返回 undefined，这是因为 document.all 的 Map 对象的 is_undetectable bit 是 1，真坑！
+Map 对象的 instance_type 相邻的字节定义了一些 bit，比如 is_callable，is_undetectable 和 is_constructor 等。null 和 undefined 的 is_undetectable bit 是 1，这点很容易理解。但同时也要看到，这些 bit 不是互斥的，document.all 虽然不是一个空对象，但它的 Map 对象的 is_undetectable 也是 1，所以才会有 typeof document.all 等于 undefined 的不合理情况。
 
 ### typeof null 等于 object
 
 
-至于前端~~经典~~的 typeof null === 'object'，由于 null 和 undefinde 的 is_undetectable bit 是 1，null 和 undefined 的流程应该是一样的，从源码的写法来看，为了避免出现 typeof null === 'undefined' 这种不合理的情况，V8 对 null 提前做了一层判断，就在 CodeStubAssembler::Typeof 函数比较早的一行。
+至于前端~~经典~~的 typeof null === 'object'，由于 null 和 undefinde 的 is_undetectable bit 同为 1，null 和 undefined 的流程应该是一样的，从源码的写法来看，为了避免出现 typeof null === 'undefined' 这种不合规范的情况，V8 对 null 提前做了一层判断，就在 CodeStubAssembler::Typeof 函数比较早的一行。
 
 ```c++
 GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball);
 ```
 
-null 的 instance_type 与 ODDBALL_TYPE（值为 67）相等，跳转到 if_oddball 标号执行。完美避开了后续的判断，ODDBALL_TYPE 如果翻译成中文的话，可能会叫奇怪类型。至少从 ODDBALL_TYPE 的命名来看，V8 也认为 null 是一个不走寻常路的类型。
+null 的 instance_type 是 ODDBALL_TYPE（值为 67），跳转到 if_oddball 标号执行。完美避开了后续的判断，ODDBALL_TYPE 如果翻译成中文的话，可能会叫奇怪类型。至少从 ODDBALL_TYPE 的命名来看，V8 也认为 null 是一个不走寻常路的类型。
+
+如果在 V8 中把 GotoIf(InstanceTypeEqual(instance_type, ODDBALL_TYPE), &if_oddball) 这一行代码删掉，typeof null 会返回 undefined。
 
 
-> 从 Javascript 层面看，null 和 undefined 不是 Javascript 对象，但二者都是 C++ 对象
+> null 和 undefined 虽然不是 Javascript 对象，却是 C++ 对象
 >
-> null 和 undefined 的共同点是 is_undetectable bit 是 1，区别点在于 null 的 instance_type 是 ODDBALL_TYPE，V8 对 ODDBALL_TYPE（暂译为奇葩类型）做了提前特殊处理
+> null 和 undefined 的共同点是 is_undetectable bit 是 1，区别点在于 null 的 instance_type 是 ODDBALL_TYPE，CodeStubAssembler::Typeof 对 ODDBALL_TYPE（暂译为奇葩类型）做了特殊处理，提前返回
+
 ## 为什么 1 + 1 = 2，1 + '1' = '11'？
 ![onePlusOne](https://raw.githubusercontent.com/xudale/blog/master/assets/onePlusOne.png)
-1 + 1 = 2 请参考春晚小品。本文只讨论 1 + '1' = '11' 的情况
+本文只讨论 1 + '1' = '11' 的情况。
 
-既然已经知道每个 Javascript 对象都有与之关联的 Map 对象来描述类型信息，那么只要知道左右两个操作数的类型，就可以判断是做加法还是做字符串相连。
-
-
-从 V8 加法的字节码处理函数一路追起，[加法核心代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-number-gen.cc#359)如下，有删减。
+既然已经知道每个 Javascript 对象都有与之关联的 Map 对象来描述类型信息，那么只要知道左右两个操作数的类型，就可以判断是做加法还是做字符串相连。从 V8 加法的字节码处理函数一路追起，[加法核心代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-number-gen.cc#359)如下，有删减。
 ```c++
 TF_BUILTIN(Add, AddStubAssembler) {
-  CodeStubAssembler::Print("TF_BUILTIN(Add");
   Node* context = Parameter(Descriptor::kContext);
   // 1.取得两个参数var_left、var_left
   VARIABLE(var_left, MachineRepresentation::kTagged,
