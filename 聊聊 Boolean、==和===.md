@@ -11,7 +11,7 @@ Boolean('test') // true
 ```JavaScript
 new Boolean('test') // Boolean {true}
 ```
-无论是哪种调用方式，在 V8 中都是由同一个函数处理，Boolean 函数由 [Torque](https://v8.dev/docs/torque-builtins) 实现，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/boolean.tq#22)：
+无论是哪种调用方式，在 V8 中都是由同一个函数处理，Boolean 函数由 [Torque](https://v8.dev/docs/torque-builtins) 实现，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/boolean.tq#22)：
 
 ```c++
 BooleanConstructor(context: Context, receiver: Object, ...arguments): Object {
@@ -37,7 +37,7 @@ BooleanConstructor(context: Context, receiver: Object, ...arguments): Object {
 
 BooleanConstructor 函数的逻辑很简单，通过 ToBoolean(arguments[0]) 将参数转为 true 或 false，如果是函数式调用，立刻返回结果，这也是日常开发中常见的情况。
 
-ToBoolean [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/base.tq#2784)：
+ToBoolean [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/base.tq#2784)：
 
 ```c++
 macro ToBoolean(obj: Object): bool {
@@ -49,7 +49,7 @@ macro ToBoolean(obj: Object): bool {
 }
 ```
 
-从源码来看 ToBoolean 函数只是在 BranchIfToBooleanIsTrue 外面包了一层而已，ToBoolean 源码也是由 Torque 实现，Torque 语法类似 Typescript。重头戏 BranchIfToBooleanIsTrue 由 CodeStubAssembler 实现，CodeStubAssembler 整体语法类似汇编，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#1328):
+从源码来看 ToBoolean 函数只是在 BranchIfToBooleanIsTrue 外面包了一层而已，ToBoolean 源码也是由 Torque 实现，Torque 语法类似 Typescript。重头戏 BranchIfToBooleanIsTrue 由 CodeStubAssembler 实现，CodeStubAssembler 整体语法类似汇编，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#1328):
 
 ```c++
 void CodeStubAssembler::BranchIfToBooleanIsTrue(Node* value, Label* if_true,
@@ -123,7 +123,7 @@ BIND(&if_smi);
 
 ## == 运算符
 
-V8 [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#11758)
+V8 [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#11758)
 
 ```c++
 // ES6 section 7.2.12 Abstract Equality Comparison
@@ -171,7 +171,7 @@ JavaScript 中的 == 运算符，V8 中相应的源码大约有 400 行，本文
 
 ## === 运算符
 
-=== 运算符最为安全稳妥，因为坑少，只截取一小部分[伪代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/code-stub-assembler.cc#12155)：
+=== 运算符最为安全稳妥，因为坑少，只截取一小部分[伪代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-stub-assembler.cc#12155)：
 
 ```c++
 Node* CodeStubAssembler::StrictEqual(Node* lhs, Node* rhs,

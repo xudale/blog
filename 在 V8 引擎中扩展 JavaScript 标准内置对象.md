@@ -10,7 +10,7 @@ times10 方法的逻辑很简单，就是将入参乘 10 后返回。在 V8 源�
 
 ### 实现 times10 方法的功能
 
-很多文章说 V8 是用 C++ 写的，其实不然。本文使用 V8 内部的编程语言 [CodeStubAssembler builtins](https://v8.dev/docs/csa-builtins) 来实现 times10 函数的功能。与 C++ 相比，CodeStubAssembler 运行效率更高，而且语法接近汇编。虽然网络上关于 CodeStubAssembler 的教程极少，但是 times10 的逻辑十分简单，参考 V8 中 [Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 的 [源码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-math-gen.cc#179)：
+很多文章说 V8 是用 C++ 写的，其实不然。本文使用 V8 内部的编程语言 [CodeStubAssembler builtins](https://v8.dev/docs/csa-builtins) 来实现 times10 函数的功能。与 C++ 相比，CodeStubAssembler 运行效率更高，而且语法接近汇编。虽然网络上关于 CodeStubAssembler 的教程极少，但是 times10 的逻辑十分简单，参考 V8 中 [Math.imul](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Math/imul) 的 [源码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-math-gen.cc#179)：
 
 ```c++
 // ES6 #sec-math.imul
@@ -44,7 +44,7 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
 
 ### 生成并存储 Code 对象
 
-在 [src/builtins/builtins-definitions.h](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#34) 的宏 BUILTIN_LIST_BASE 下，新增一行：
+在 [src/builtins/builtins-definitions.h](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-definitions.h#34) 的宏 BUILTIN_LIST_BASE 下，新增一行：
 
 ```c++
 #define BUILTIN_LIST_BASE(CPP, TFJ, TFC, TFS, TFH, ASM)      \
@@ -56,7 +56,7 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
 
 ### 取出上一步生成的 Code 对象，添加至 Math 对象的 times10 属性上
 
-在 src/init/bootstrapper.cc 文件中的 [Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#1386) 方法，找到初始化 Javascript Math 对象的[代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705)，参考邻近代码，增加一行：
+在 src/init/bootstrapper.cc 文件中的 [Genesis::InitializeGlobal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/init/bootstrapper.cc#1386) 方法，找到初始化 Javascript Math 对象的[代码](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/init/bootstrapper.cc#2705)，参考邻近代码，增加一行：
 
 ```c++
 SimpleInstallFunction(isolate_, math, "exp", Builtins::kMathExp, 1, true);
@@ -101,7 +101,7 @@ TF_BUILTIN(MathTimes10, CodeStubAssembler) {
 }
 ```
 
-[TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29) 是 C++ 定义的宏，源码如下：
+[TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-utils-gen.h#29) 是 C++ 定义的宏，源码如下：
 
 ```c++
 #define TF_BUILTIN(Name, AssemblerBase)                                 \
@@ -165,7 +165,7 @@ void MathTimes10Assembler::GenerateMathTimes10Impl() {
 }
 ```
 
-可见 [TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-utils-gen.h#29) 宏主要做了两件事情。
+可见 [TF_BUILTIN](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-utils-gen.h#29) 宏主要做了两件事情。
 
 - 生成 MathTimes10Assembler 类，MathTimes10Assembler 类继承自 CodeStubAssembler 类。并为 MathTimes10Assembler 类添加一个新方法 GenerateMathTimes10Impl，GenerateMathTimes10Impl 方法体就是我们自定义 times10 函数的实现代码。我们刚才在实现 times10 的过程中，使用的 Parameter，TruncateTaggedToFloat64 等函数，都是继承自父类。
 - 为 Builtins 类添加方法 Generate_MathTimes10，该方法最终调用了 times10 的实现代码 MathTimes10Assembler::GenerateMathTimes10Impl；
@@ -187,7 +187,7 @@ void MathTimes10Assembler::GenerateMathTimes10Impl() {
 
 首先简要介绍下 V8 中的 Code 类。
 #### Code 类简介
-Code 是 V8 中的一个类，用于描述可执行代码。每个 JavaScript 函数在 V8 中都有一个与之关联的 Code 对象，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
+Code 是 V8 中的一个类，用于描述可执行代码。每个 JavaScript 函数在 V8 中都有一个与之关联的 Code 对象，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#932)：
 
 ```c++
 class JSFunction : public JSObject {
@@ -205,7 +205,7 @@ class JSFunction : public JSObject {
 
 JSFunction 对应 JavaScript 的函数，JSObject 对应 JavaScript 的对象。JSFunction 继承自 JSObject，并增加了 code 和 set_code 等与可执行代码相关的字段或方法，JSObject 并没有可执行代码相关的字段，这一点与我们使用 JavaScript 的体验是一致的。在 V8 源码中 JavaScript 函数与对象的关系，可参考笔者的另外一篇文章[从 V8 源码理解 Javascript 函数是一等公民](https://zhuanlan.zhihu.com/p/101132637)。
 
-Code 对象[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/code.h#31)
+Code 对象[声明如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/code.h#31)
 
 ```c++
 // 源码太长，只截取部分
@@ -237,7 +237,7 @@ class Code : public HeapObject {
   TFJ(MathTimes10, 1, kReceiver, kX)                       \ 
 ```
 
-在 V8 源码中全局搜索 BUILTIN_LIST_BASE，发现宏 [BUILTIN_LIST](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-definitions.h#1321)，有调用 BUILTIN_LIST_BASE。
+在 V8 源码中全局搜索 BUILTIN_LIST_BASE，发现宏 [BUILTIN_LIST](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-definitions.h#1321)，有调用 BUILTIN_LIST_BASE。
 
 ```c++
 #define BUILTIN_LIST(CPP, TFJ, TFC, TFS, TFH, BCH, ASM)  \
@@ -245,7 +245,7 @@ class Code : public HeapObject {
   // 专注重点，后面略
 ```
 
-源码中全局搜索 BUILTIN_LIST，可以搜到多个结果，其中类 [Builtins](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins.h#47) 的声明代码中，调用了宏 BUILTIN_LIST：
+源码中全局搜索 BUILTIN_LIST，可以搜到多个结果，其中类 [Builtins](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins.h#47) 的声明代码中，调用了宏 BUILTIN_LIST：
 
 ```c++
 class Builtins {
@@ -274,7 +274,7 @@ Builtins 使用宏嵌套声明了枚举，类型为整型，最终效果相当�
 
 #### 生成 Code 对象
 
-BUILTIN_LIST 的另一处调用 [SetupIsolateDelegate::SetupBuiltinsInternal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/setup-builtins-internal.cc#286)：
+BUILTIN_LIST 的另一处调用 [SetupIsolateDelegate::SetupBuiltinsInternal](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/setup-builtins-internal.cc#286)：
 
 ```c++
 void SetupIsolateDelegate::SetupBuiltinsInternal(Isolate* isolate) {
@@ -309,7 +309,7 @@ code = BuildWithCodeStubAssemblerJS(
   AddBuiltin(builtins, index++, code); 
 ```
 
-顺着 AddBuiltin 的源码一直追下去，发现所有的 Code 对象都存在 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中。
+顺着 AddBuiltin 的源码一直追下去，发现所有的 Code 对象都存在 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/execution/isolate-data.h#162) 数组中。
 
 ```c++
 Address builtins_[Builtins::builtin_count] = {};
@@ -323,13 +323,13 @@ Address builtins_[Builtins::builtin_count] = {};
 
 ### 取出上一步生成的 Code 对象，添加至 Math 对象的 times10 属性上
 
-这一步代码最简单，在 [bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#2705) 文件中，math 函数相关的部分，添加一行：
+这一步代码最简单，在 [bootstrapper.cc](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/init/bootstrapper.cc#2705) 文件中，math 函数相关的部分，添加一行：
 
 ```c++
 SimpleInstallFunction(isolate_, math, "times10", Builtins::kMathTimes10, 1, true);
 ```
 
-math 就是 JavaScript 的 math 对象，Builtins::kMathTimes10 是上一节生成的索引，通过索引可以从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中找到 times10 对应的 Code 对象。[SimpleInstallFunction](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc#463) 的源码如下：
+math 就是 JavaScript 的 math 对象，Builtins::kMathTimes10 是上一节生成的索引，通过索引可以从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/execution/isolate-data.h#162) 数组中找到 times10 对应的 Code 对象。[SimpleInstallFunction](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/init/bootstrapper.cc#463) 的源码如下：
 
 ```c++
 V8_NOINLINE Handle<JSFunction> SimpleInstallFunction(
@@ -347,7 +347,7 @@ V8_NOINLINE Handle<JSFunction> SimpleInstallFunction(
 }
 ```
 
-SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162) 数组中找到对应的 Code 对象，生成一个新的 JSFunction 的实例，调用 JSObject::AddProperty 函数，添加 times10 属性，本节内容总结如下图：
+SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/execution/isolate-data.h#162) 数组中找到对应的 Code 对象，生成一个新的 JSFunction 的实例，调用 JSObject::AddProperty 函数，添加 times10 属性，本节内容总结如下图：
 
 ![getCode](https://raw.githubusercontent.com/xudale/blog/master/assets/getCode.png)
 
@@ -355,11 +355,11 @@ SimpleCreateFunction 实际调用链路很长，它最终会从 [builtins_](http
 
 ### V8 还是比较安全的
 
-从内置函数相关的源码看下来，攻击 V8 定义的 Javascript 标准内置函数还是很难的。如果要攻击，首先要绕过词法分析、语法分析和 AST 树 3 座大山，走过这一步本身就很有难度。V8 的内置函数都存在数组 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/isolate-data.h#162)中，但这个数组离 JavaScript 层面实在太远了，很难攻击篡改。
+从内置函数相关的源码看下来，攻击 V8 定义的 Javascript 标准内置函数还是很难的。如果要攻击，首先要绕过词法分析、语法分析和 AST 树 3 座大山，走过这一步本身就很有难度。V8 的内置函数都存在数组 [builtins_](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/execution/isolate-data.h#162)中，但这个数组离 JavaScript 层面实在太远了，很难攻击篡改。
 
 ### 谈谈 Bootstrap 
 
-在芯片或嵌入式领域，Bootstrap 有启动程序和引导程序的含义。这里谈的 [Bootstrap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/init/bootstrapper.cc) 是 V8 里的一个文件。之所以在文章最后提一下这个文件，是因为这个文件注册了所有 JavaScript 标准所规定的函数，和前端的关系最为密切，因为某些原因，上面的链接可能打不开，笔者索性就粘贴一段 Bootstrap.cc 文件中数组相关的代码：
+在芯片或嵌入式领域，Bootstrap 有启动程序和引导程序的含义。这里谈的 [Bootstrap](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/init/bootstrapper.cc) 是 V8 里的一个文件。之所以在文章最后提一下这个文件，是因为这个文件注册了所有 JavaScript 标准所规定的函数，和前端的关系最为密切，因为某些原因，上面的链接可能打不开，笔者索性就粘贴一段 Bootstrap.cc 文件中数组相关的代码：
 
 ```c++
 // Set up %ArrayPrototype%.

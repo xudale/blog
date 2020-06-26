@@ -130,7 +130,7 @@
 		<div>从输出可以看到浮点数加法的汇编语句:</div>
 		<pre>
 	addsd xmm1, xmm0</pre>
-		<div>及其对应的机器码 f20f58c8 ，下面开始看 V8 源码，生成这段机器码的方法是<a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/assembler-x64.cc#3770" target="_blank"> Assembler::addsd </a>。</div>
+		<div>及其对应的机器码 f20f58c8 ，下面开始看 V8 源码，生成这段机器码的方法是<a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/x64/assembler-x64.cc#3770" target="_blank"> Assembler::addsd </a>。</div>
 		<pre>
 	void Assembler::addsd(XMMRegister dst, XMMRegister src) {
 	  	EnsureSpace ensure_space(this);
@@ -142,7 +142,7 @@
 	}</pre>
 		<div>addsd 方法内部 3 次调用 emit 方法，3 次调用 emit 方法的参数分别为 0xF2，0x0F，0x58，对比 Intel 软件手册，可知这 3 个参数对应 addsd 指令的机器码。</div>
 		<img src="./assets/intel-addsd.png" alt="addsd">
-		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/assembler-x64.h#1795" target="_blank">emit </a>方法定义如下：</div>
+		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/x64/assembler-x64.h#1795" target="_blank">emit </a>方法定义如下：</div>
 		<pre>
 	void emit(byte x) { *pc_++ = x; }</pre>
 		<div>pc_是一个字节指针，*pc_++ 相当于先执行 pc++ 将指针指向下一字节，然后执行 *pc_ = x；emit 方法的作用是将传入的机器码，也就是参数 x，写入内存。变量取名为 pc_，个人猜测是因为多数 CPU 都有一个特殊功能寄存器指向下一条要执行的指令的地址，即程序计数器 PC（Program Counter），x86 中相应的特殊寄存器为 IP（Instruction Pointer）。机器码的执行与生成可以理解为两个相反的过程。机器码在执行阶段会连续从 PC 寄存器指向的内存中读取机器码；机器码在生成阶段会连续向 pc_ 指针指向的内存中写入机器码。</div>
@@ -153,13 +153,13 @@
 			<img style="display: inline-block;" src="./assets/c8-small.png" alt="">	
 		</div>
 		
-		<div>从 V8 源码的角度来看，<a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/assembler-x64.cc#4746" target="_blank"> emit_sse_operand </a>方法定义如下：</div>
+		<div>从 V8 源码的角度来看，<a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/x64/assembler-x64.cc#4746" target="_blank"> emit_sse_operand </a>方法定义如下：</div>
 		<pre>
 	void Assembler::emit_sse_operand(XMMRegister dst, XMMRegister src) {
   		emit(0xC0 | (dst.low_bits() << 3) | src.low_bits());
 	}</pre>
 		<div>
-			方法只有一行代码，代码逻辑完全遵守 Intel 手册中关于机器码的定义。首先，bit 7 - bit 6 是 11，对应源码中的 16 进制数字 0xC0。参数 src 和 dst 是用来描述 x64 中 xmm0 和 xmm1 寄存器的 C++ 对象。类 XMMRegister 继承自类 RegisterBase，相应的继承了类 RegisterBase 的 <a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/register.h#105" target="_blank"> reg_code_ </a> 字段，reg_code_ 字段表示 Intel 软件手册规定的寄存器的序号。src 对象描述的寄存器是 xmm0，相应的 reg_code_ 字段为 0；dst 对象描述的寄存器是 xmm1，相应的 reg_code_ 字段为 1。
+			方法只有一行代码，代码逻辑完全遵守 Intel 手册中关于机器码的定义。首先，bit 7 - bit 6 是 11，对应源码中的 16 进制数字 0xC0。参数 src 和 dst 是用来描述 x64 中 xmm0 和 xmm1 寄存器的 C++ 对象。类 XMMRegister 继承自类 RegisterBase，相应的继承了类 RegisterBase 的 <a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/register.h#105" target="_blank"> reg_code_ </a> 字段，reg_code_ 字段表示 Intel 软件手册规定的寄存器的序号。src 对象描述的寄存器是 xmm0，相应的 reg_code_ 字段为 0；dst 对象描述的寄存器是 xmm1，相应的 reg_code_ 字段为 1。
 		</div>
 		<pre>
 	class RegisterBase {
@@ -168,7 +168,7 @@
   		explicit constexpr RegisterBase(int code) : reg_code_(code) {}
   		int reg_code_;
 	};</pre>
-		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/codegen/x64/register-x64.h#161" target="_blank">low_bits </a>方法定义如下，实际上是取了 reg_code_ 字段的低 3 位，回头再看 emit-sse-operand 方法，可知 dst.low_bits() << 3 的值是 8，src.low_bits() 的值是 0。0xC0 | (dst.low_bits() << 3) | src.low_bits() 相当于0xC0 | 8 | 0，结果刚好为 0xC8。</div>
+		<div><a href="https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/x64/register-x64.h#161" target="_blank">low_bits </a>方法定义如下，实际上是取了 reg_code_ 字段的低 3 位，回头再看 emit-sse-operand 方法，可知 dst.low_bits() << 3 的值是 8，src.low_bits() 的值是 0。0xC0 | (dst.low_bits() << 3) | src.low_bits() 相当于0xC0 | 8 | 0，结果刚好为 0xC8。</div>
 		<pre>
 	class XMMRegister : public RegisterBase<XMMRegister, kDoubleAfterLast> {
  		public:

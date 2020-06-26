@@ -10,7 +10,7 @@ microtask 队列存在于 V8 中，从 Node 和 V8 源码来看，V8 有暴露 m
 Promise.resolve('abc').then(res => console.log(res))
 ```
 
-V8 的 microtask 队列里会新增一个 microtask，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#100)：
+V8 的 microtask 队列里会新增一个 microtask，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/execution/microtask-queue.cc#100)：
 
 ```c++
 void MicrotaskQueue::EnqueueMicrotask(Microtask microtask) {
@@ -36,7 +36,7 @@ MicrotaskQueue 类是 microtask 队列在 V8 中的抽象表示，size_ 表示 m
 Address* ring_buffer_ = nullptr;
 ```
 
-上文提到的给 microtask 队列扩容的 ResizeBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#261)：
+上文提到的给 microtask 队列扩容的 ResizeBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/execution/microtask-queue.cc#261)：
 
 ```c++
 void MicrotaskQueue::ResizeBuffer(intptr_t new_capacity) {
@@ -68,7 +68,7 @@ ResizeBuffer 方法的逻辑很简单，总结如下：
 
 ### 奇技淫巧（建议跳过不看）
 
-前端程序员觉得 C++ 是足够快的，V8 觉得 C++ 还不够快，所以 V8 内部使用 CodeStubAssembler 语言，在上文 MicrotaskQueue 的基础上，进一步优化了 microtask 队列的性能。事实上，Javascript 的内置函数，大多都是用 CodeStubAssembler 实现的。CodeStubAssembler 版本的 EnqueueMicrotask [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#474)：
+前端程序员觉得 C++ 是足够快的，V8 觉得 C++ 还不够快，所以 V8 内部使用 CodeStubAssembler 语言，在上文 MicrotaskQueue 的基础上，进一步优化了 microtask 队列的性能。事实上，Javascript 的内置函数，大多都是用 CodeStubAssembler 实现的。CodeStubAssembler 版本的 EnqueueMicrotask [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-microtask-queue-gen.cc#474)：
 
 
 ```c++
@@ -111,7 +111,7 @@ TF_BUILTIN(EnqueueMicrotask, MicrotaskQueueBuiltinsAssembler) {
   TNode<RawPtrT> ring_buffer = GetMicrotaskRingBuffer(microtask_queue); 
 ```
 
-GetMicrotaskRingBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#61)：
+GetMicrotaskRingBuffer 方法[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-microtask-queue-gen.cc#61)：
 
 ```c++
 TNode<RawPtrT> MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer(
@@ -124,7 +124,7 @@ TNode<RawPtrT> MicrotaskQueueBuiltinsAssembler::GetMicrotaskRingBuffer(
 ```
 
 可见 GetMicrotaskRingBuffer 的逻辑是从 microtask_queue 对象上，读偏移量为 MicrotaskQueue::kRingBufferOffset 的字段。
-MicrotaskQueue::kRingBufferOffset [定义如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/execution/microtask-queue.cc#22)：
+MicrotaskQueue::kRingBufferOffset [定义如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/execution/microtask-queue.cc#22)：
 
 ```c++
 #define OFFSET_OF(type, field) \
@@ -136,7 +136,7 @@ const size_t MicrotaskQueue::kRingBufferOffset =
 
 MicrotaskQueue::kRingBufferOffset 表示 ring_buffer_ 在 MicrotaskQueue 对象上的偏移量。只要有了偏移量，就可以通过非常规手段访问 ring_buffer_，V8 就是这么干的，这也是本节名称奇技淫巧的由来。
 
-遍历 microtask 队列的方法 RunMicrotasks [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-microtask-queue-gen.cc#524)：
+遍历 microtask 队列的方法 RunMicrotasks [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-microtask-queue-gen.cc#524)：
 
 ```c++
 TF_BUILTIN(RunMicrotasks, MicrotaskQueueBuiltinsAssembler) {
@@ -209,7 +209,7 @@ test()
 本节以上面的简单 JavaScript 代码为例，分析 async/await 的执行机制。
 ### 生成字节码
 
-生成 await 123456 的字节码的[代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/interpreter/bytecode-generator.cc#3805)：
+生成 await 123456 的字节码的[代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/interpreter/bytecode-generator.cc#3805)：
 ```c++
 void BytecodeGenerator::BuildSuspendPoint(int position) {
   const int suspend_id = suspend_count_++;
@@ -241,7 +241,7 @@ void BytecodeGenerator::BuildSuspendPoint(int position) {
 > async/await 和 generator 共享许多源码，很多文章说 async/await 是 generator 的语法糖，是有一定道理的
 ### 执行字节码
 
-字节码 SuspendGenerator 的处理函数，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/interpreter/interpreter-generator.cc#3168)：
+字节码 SuspendGenerator 的处理函数，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/interpreter/interpreter-generator.cc#3168)：
 
 ```c++
 IGNITION_HANDLER(SuspendGenerator, InterpreterAssembler) {
@@ -275,7 +275,7 @@ IGNITION_HANDLER(SuspendGenerator, InterpreterAssembler) {
 }
 ```
 
-从源码来看，V8 在执行字节码 SuspendGenerator 时，多次调用 StoreObjectField，保存当前的状态。目前还看不出来代码会暂停执行，这里要注意下代码的最后一行。对比 [ResumeGenerator](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/interpreter/interpreter-generator.cc#3246) 的字节码处理函数来看：
+从源码来看，V8 在执行字节码 SuspendGenerator 时，多次调用 StoreObjectField，保存当前的状态。目前还看不出来代码会暂停执行，这里要注意下代码的最后一行。对比 [ResumeGenerator](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/interpreter/interpreter-generator.cc#3246) 的字节码处理函数来看：
 
 ```c++
 IGNITION_HANDLER(ResumeGenerator, InterpreterAssembler) {
@@ -304,7 +304,7 @@ IGNITION_HANDLER(ResumeGenerator, InterpreterAssembler) {
 
 ResumeGenerator 多次调用 LoadObjectField，恢复之前代码的执行。ResumeGenerator 就像是 SuspendGenerator 的反函数，一个存储当前代码的执行状态，一个恢复当前代码的执行状态。
 
-ResumeGenerator 的最后一行是 Dispatch，Dispatch 的功能是取出下一条要执行的字节码，然后执行，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/interpreter/interpreter-assembler.cc#1396)
+ResumeGenerator 的最后一行是 Dispatch，Dispatch 的功能是取出下一条要执行的字节码，然后执行，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/interpreter/interpreter-assembler.cc#1396)
 
 ```c++
 Node* InterpreterAssembler::Dispatch() {

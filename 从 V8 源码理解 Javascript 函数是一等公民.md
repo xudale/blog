@@ -78,7 +78,7 @@ main 函数调用 times10 函数，从生成的汇编来看，编译完成后 ti
 
 ## JavaScript 语言函数的底层表示
 
-V8 会将 JavaScript 函数编译成 C++ 类 JSFunction 的实例，JSFunction [声明代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#932)：
+V8 会将 JavaScript 函数编译成 C++ 类 JSFunction 的实例，JSFunction [声明代码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#932)：
 
 ```c++
     // JSFunction describes JavaScript functions.
@@ -134,7 +134,7 @@ JavaScript 函数的 [toString](https://developer.mozilla.org/en-US/docs/Web/Jav
     Math.max.toString() // 输出 "function max() { [native code] }"
 ```
 
-并没有输出函数的实现代码，而且输出的字符串中 native code 是从哪里来的呢？这个问题困扰了笔者 3 年，下面，我们一起看下 JavaScript 函数的 toString 方法在 V8 中的实现，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/builtins/builtins-function.cc#269)
+并没有输出函数的实现代码，而且输出的字符串中 native code 是从哪里来的呢？这个问题困扰了笔者 3 年，下面，我们一起看下 JavaScript 函数的 toString 方法在 V8 中的实现，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-function.cc#269)
 
 ```c++
     // ES6 section 19.2.3.5 Function.prototype.toString ( )
@@ -151,7 +151,7 @@ JavaScript 函数的 [toString](https://developer.mozilla.org/en-US/docs/Web/Jav
     }
 ```
 
-BUILTIN 是 C++ 定义的宏，C++ 预处理阶段后，上面的代码会变成 C++ 类的一个方法。Math.max 是 JSFunction 的实例，receiver->IsJSFunction() 为true，会执行 JSFunction 的 ToString 类方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#5405)
+BUILTIN 是 C++ 定义的宏，C++ 预处理阶段后，上面的代码会变成 C++ 类的一个方法。Math.max 是 JSFunction 的实例，receiver->IsJSFunction() 为true，会执行 JSFunction 的 ToString 类方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.cc#5405)
 
 ```c++
     // static
@@ -166,7 +166,7 @@ BUILTIN 是 C++ 定义的宏，C++ 预处理阶段后，上面的代码会变成
     }
 ```
 
-Math.max 是 V8 内置函数，不是由用户定义的，!shared_info->IsUserJavaScript() 结果是 true，执行 NativeCodeFunctionSourceString 函数。[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#5393)
+Math.max 是 V8 内置函数，不是由用户定义的，!shared_info->IsUserJavaScript() 结果是 true，执行 NativeCodeFunctionSourceString 函数。[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.cc#5393)
 
 ```c++
     Handle<String> NativeCodeFunctionSourceString(
@@ -195,7 +195,7 @@ JavaScript 函数的 [name](https://developer.mozilla.org/en-US/docs/Web/JavaScr
     a.name // 输出函数名 "a"
 ```
 
-JavaScript 函数 name 属性的实现过程中，调用了 JSFunction 的 GetName 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.cc#4837)
+JavaScript 函数 name 属性的实现过程中，调用了 JSFunction 的 GetName 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.cc#4837)
 
 ```c++
     // static
@@ -215,7 +215,7 @@ JavaScript 函数的 [length](https://developer.mozilla.org/en-US/docs/Web/JavaS
     a.length // 输出 1
 ```
 
-JavaScript 函数 length 属性的实现过程中，调用了 JSFunction 的 length 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects-inl.h#550)
+JavaScript 函数 length 属性的实现过程中，调用了 JSFunction 的 length 方法，[源码如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects-inl.h#550)
 
 ```c++
     int JSFunction::length() { return shared().length(); }
@@ -255,7 +255,7 @@ isPrice 校验用户输入的字符串是否是一个价格，Boolean 和 isNumb
     }
 ```
 
-JSObject 的[声明如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7.1/src/objects/js-objects.h#274)
+JSObject 的[声明如下：](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#274)
 
 ```c++
     // The JSObject describes real heap allocated JavaScript objects with
