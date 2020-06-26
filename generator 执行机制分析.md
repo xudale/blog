@@ -200,7 +200,35 @@ Node* InterpreterAssembler::Advance() { return Advance(CurrentBytecodeSize()); }
 
 ## 3 种函数
 
+JavaScript 的类型系统比较薄弱，比如 
 
+```JavaScript
+typeof 1 // number
+typeof 0.1 // number
+```
+
+虽然 1 和 0.1 都是 number，但它们本质上是不同的类型，内存表示不一样，CPU 对整数和浮点数的运算指令也不一样。
+
+```JavaScript
+function* test() {
+  yield 123456
+}
+typeof test // function
+
+async function test1() {
+  let res = await 123456;
+}
+typeof test1 // function
+
+function test2() {}
+typeof test2 // function
+```
+
+test、test1、test2 在 JavaScript 中的类型都是 function，但在 V8 中它们 3 个是不同的类型，如下图：
+
+![generator-class](https://raw.githubusercontent.com/xudale/blog/master/assets/generator-class.png)
+
+日常开发中，当一个方法需要一个函数做为参数时，比如 forEach 和 map，多半需要的是 ES6 之前的函数，如果误传了 async 函数或者生成器函数，多半会出问题。因为 ES6 之前的函数、async 函数和生成器函数，虽然在 JavaScript 中 typeof 都返回 function，但在 V8 中它们是不同的类型，运行机制和返回值也不一样。
 ## 原生 generator 与 babel 转译 generator 的区别
 
 
