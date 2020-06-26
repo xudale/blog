@@ -187,13 +187,22 @@ Node* InterpreterAssembler::Advance() { return Advance(CurrentBytecodeSize()); }
 
 字节码一行一行往下执行，一直遇到下一个 SuspendGenerator，也就是本文第一张图所标示的“第二次暂停”，生成器函数又暂停了，此时 yield 123456 执行完毕。
 
-在 V8 层面 await/yield 对应的字节码是 SuspendGenerator 和 ResumeGenerator，第二次暂停是 yield 带来的。
+在 V8 层面 yield 对应的字节码是 SuspendGenerator 和 ResumeGenerator，第二次暂停是 yield 带来的。
 
 
 
 ## async/await 与 generator 的关系
+笔者在另外一篇文章分析过 async/await。async/await 和 generator 都有暂停当前函数执行，从暂停处恢复执行的能力，await 和 yield 对应的字节码都是 SuspendGenerator 和 ResumeGenerator，这方面它们没有区别。
+
+生成器函数需要生成器对象的 next 方法，才可以从暂停处恢复执行。async 函数依赖 Promise，与 microtask 联系紧密，V8 在执行 microtask 队列时，就可以让已经暂停的 async 函数恢复执行。正因为 async 函数集成了 Promise 和 microtask，使得其看起来更同步，写起来逻辑更清晰。
+
+![generator-async](https://raw.githubusercontent.com/xudale/blog/master/assets/generator-async.png)
 
 ## 3 种函数
+
+
+## 原生 generator 与 babel 转译 generator 的区别
+
 
 
 
