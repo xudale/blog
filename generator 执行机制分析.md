@@ -229,9 +229,57 @@ test、test1、test2 在 JavaScript 中的类型都是 function，但在 V8 中�
 ![generator-class](https://raw.githubusercontent.com/xudale/blog/master/assets/generator-class.png)
 
 日常开发中，当一个方法需要一个函数做为参数时，比如 forEach 和 map，多半需要的是 ES6 之前的函数，如果误传了 async 函数或者生成器函数，多半会出问题。因为 ES6 之前的函数、async 函数和生成器函数，虽然在 JavaScript 中 typeof 都返回 function，但在 V8 中它们是不同的类型，运行机制和返回值也不一样。
+
 ## 原生 generator 与 babel 转译 generator 的区别
 
+日常开发中，生成器函数会被 bebel 转译成类似下面的代码：
+```JavaScript
+async function test() {
+  await 1
+  await 2
+  await 3
+}
 
+// bebel 转译后
+function test() {
+  return _test.apply(this, arguments);
+}
+
+function _test() {
+  _test = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
+    return regeneratorRuntime.wrap(function _callee$(_context) {
+      while (1) {
+        switch (_context.prev = _context.next) {
+          case 0:
+            _context.next = 2;
+            return 1; // 第一次调用
+
+          case 2:
+            _context.next = 4;
+            return 2; // 第二次调用
+
+          case 4:
+            _context.next = 6;
+            return 3; // 第三次调用
+
+          case 6:
+          case "end":
+            return _context.stop();
+        }
+      }
+    }, _callee);
+  }));
+  return _test.apply(this, arguments);
+}
+```
+
+看到这段代码笔者想起了一句话：
+
+> 人不能两次踏进同一条河流    ——[赫拉克利特](https://baike.baidu.com/item/%E8%B5%AB%E6%8B%89%E5%85%8B%E5%88%A9%E7%89%B9)
+
+test 函数被多次调用，但每次通过 switch case 语句时，走向了不同的分支，闭包保存了函数执行的状态，实现非常巧妙。但与 V8 中生成器函数的原理区别很大。bebel 再怎么转，也转不出来字节码 SuspendGenerator 和 ResumeGenerator 的效果。
+
+## 总结
 
 
 
