@@ -12,7 +12,7 @@ iterator.next()
 分析 generator 执行机制相关的源码，版本为 V8 7.7.1。
 ## 初始化——第一次暂停
 
-首先，注释掉 iterator.next()，
+首先，注释掉 iterator.next() 后，在 V8 中运行代码，
 
 ```JavaScript
 function* test() {
@@ -26,7 +26,7 @@ test 函数生成的字节码如下：
 
 ![generator-bytecode](https://raw.githubusercontent.com/xudale/blog/master/assets/generator-bytecode.png)
 
-当 let iterator = test() 开始执行时，V8 会创建一个生成器对象，对应上图字节码中的 CreateJSGeneratorObject，CreateJSGeneratorObject [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/runtime/runtime-generator.cc#46)：
+test 有 * 修饰，是一个生成器函数。当 let iterator = test() 开始执行时，V8 会创建一个生成器对象，对应上图字节码中的 CreateJSGeneratorObject，CreateJSGeneratorObject [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/runtime/runtime-generator.cc#46)：
 
 ```c++
 RUNTIME_FUNCTION(Runtime_CreateJSGeneratorObject) {
@@ -85,17 +85,11 @@ IGNITION_HANDLER(SuspendGenerator, InterpreterAssembler) {
 }
 ```
 
-字节码 SuspendGenerator 的功能是暂停执行，其处理函数里面多次调用 StoreObjectField 来保存生成器函数当前运行的状态，最后返回累加器中的值，之前提到过，此时累加器存的是生成器对象 generator。所以生成器对象 generator 返回给了 JavaScript 代码中的 iterator。
+字节码 SuspendGenerator 的功能是暂停执行，其处理函数里面多次调用 StoreObjectField 来保存生成器函数当前运行的状态，最后返回累加器中的值，之前提到过，此时累加器存的是生成器对象 generator。所以 V8 中的生成器对象 generator 返回给了 JavaScript 代码中的 iterator。此时，生成器函数处理暂停状态，字节码执行到了本文第一张图所标识的“第一次暂停”的位置。
 
-
-
-
-
-
-
-
-
-
+> JavaScript 调用生成器函数（test）时，生成器函数开始执行，返回生成器对象（iterator），最后暂停
+>
+> 第一次调用生成器函数时，生成器函数的整体表现类似于构造函数。拿到生成器函数返回的生成器对象，可能让生成器函数继续执行
 
 ## iterator.next()——第二次暂停
 
