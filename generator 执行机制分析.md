@@ -92,13 +92,13 @@ IGNITION_HANDLER(SuspendGenerator, InterpreterAssembler) {
 
 ## iterator.next()——第二次暂停
 
-上一节我们注释掉了 iterator.next()，当 JavaScript 代码中继续执行 iterator.next() 时，生成器对象的 next 方法被调用，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-generator-gen.cc#286)：
+上一节我们注释掉了 iterator.next()，当 JavaScript 代码继续执行 iterator.next() 时，生成器对象的 next 方法被调用，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/builtins-generator-gen.cc#286)：
 
 ```c++
 void GeneratorBuiltinsAssembler::GeneratorPrototypeResume(
     CodeStubArguments* args, Node* receiver, Node* value, Node* context,
     JSGeneratorObject::ResumeMode resume_mode, char const* const method_name) {
-  // CodeFactory::ResumeGenerator 使 test 生成器函数从暂停处恢复执行
+  // CodeFactory::ResumeGenerator 使生成器函数从暂停处恢复执行
   Node* result = CallStub(CodeFactory::ResumeGenerator(isolate()), context,
                           value, receiver);
   // Make sure we close the generator if there was an exception.
@@ -109,7 +109,7 @@ void GeneratorBuiltinsAssembler::GeneratorPrototypeResume(
 }
 ```
 
-由于笔者的 Mac 是 X64 平台，调用链路为[CodeFactory::ResumeGenerator](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-factory.cc#278)->[Builtins::Generate_ResumeGeneratorTrampoline](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/x64/builtins-x64.cc#695)。生成器函数 test 在上一节已经处于暂停状态，调用 iterator.next() 使其从暂停处继续执行，高级语言当然没有这样的功能。V8 在这里对各大平台的汇编做了一层抽象，Builtins::Generate_ResumeGeneratorTrampoline 函数通过调用 X64 汇编，使生成器函数在暂停处继续执行。Builtins::Generate_ResumeGeneratorTrampoline 代码很长，笔者只能看懂大概，这里只截取了几行，大致逻辑是将未来要返回的地址压栈，然后跳转到生成器函数 test 暂停的地方，继续执行。
+生成器函数恢复执行需要 CPU 的寄存器操作，在笔者的 Mac 下，调用链路为GeneratorBuiltinsAssembler::GeneratorPrototypeResume->[CodeFactory::ResumeGenerator](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/codegen/code-factory.cc#278)->[Builtins::Generate_ResumeGeneratorTrampoline](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/builtins/x64/builtins-x64.cc#695)。生成器函数 test 在上一节已经处于暂停状态，调用 iterator.next() 使其从暂停处继续执行，高级语言当然没有这样的功能。V8 在这里对各大平台的汇编做了一层抽象，Builtins::Generate_ResumeGeneratorTrampoline 函数通过调用 X64 汇编，使生成器函数在暂停处恢复执行。Builtins::Generate_ResumeGeneratorTrampoline 代码很长，笔者只能看懂大概，这里只截取了几行，大致逻辑是将未来要返回的地址压栈，然后跳转到生成器函数 test 暂停的地方，继续执行。
 
 ```c++
 #define __ ACCESS_MASM(masm)
@@ -139,7 +139,6 @@ void Builtins::Generate_ResumeGeneratorTrampoline(MacroAssembler* masm) {
 // Imports the register file stored in the generator and marks the generator
 // state as executing.
 IGNITION_HANDLER(ResumeGenerator, InterpreterAssembler) {
-  CodeStubAssembler::Print("InterpreterAssembler::ResumeGenerator");
   Node* generator = LoadRegisterAtOperandIndex(0);
   Node* closure = LoadRegister(Register::function_closure());
   RegListNodePair registers = GetRegisterListAtOperandIndex(1);
@@ -164,7 +163,7 @@ IGNITION_HANDLER(ResumeGenerator, InterpreterAssembler) {
 }
 ```
 
-ResumeGenerator 字节码的处理函数与 SuspendGenerator 字节码的处理函数基本相反，SuspendGenerator 保存当前生成器函数的各种执行状态，ResumeGenerator 恢复之前保存的状态，最后调用 Dispatch 函数，取出下一条字节码，执行。Dispatch 函数[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/interpreter/interpreter-assembler.cc#1396)：
+ResumeGenerator 字节码处理函数与 SuspendGenerator 字节码处理函数逻辑基本相反，SuspendGenerator 保存当前生成器函数的各种执行状态，ResumeGenerator 恢复之前保存的状态，最后调用 Dispatch 函数，取出下一条字节码，执行。Dispatch 函数[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/interpreter/interpreter-assembler.cc#1396)：
 
 ```c++
 Node* InterpreterAssembler::Dispatch() {
@@ -182,20 +181,24 @@ Node* InterpreterAssembler::Dispatch() {
 Node* InterpreterAssembler::Advance() { return Advance(CurrentBytecodeSize()); }
 ```
 
-如果把 V8 看做一个虚拟机，执行一条字节码后，必须要取出下一条字节码并执行，虚拟机上的程序才可能一直跑下去，ResumeGenerator 就是这样的，在其字节码处理函数的最后，调用 Dispatch，使程序继续执行，不会停止。而 SuspendGenerator 的字节码处理函数最后没有调用 Dispatch，所以从 JavaScript 的层面看来，生成器函数 test 暂停了。
+如果把 V8 看做一台虚拟机，那么执行一条字节码后，必须要取出下一条字节码并执行，虚拟机上的程序才可能一直跑下去，ResumeGenerator 就是这样的，在其字节码处理函数的最后，调用 Dispatch，使程序继续执行，不会停止。事实上，几乎所有字节码处理函数最后都要调用 Dispatch。但 SuspendGenerator 的字节码处理函数最后没有调用 Dispatch，没有执行下面的字节码，生成器函数 test 暂停了。
 
-字节码一行一行往下执行，一直遇到下一个 SuspendGenerator，也就是本文第一张图所标示的“第二次暂停”，生成器函数又暂停了，此时 yield 123456 执行完毕。
+ResumeGenerator 后，字节码一行一行往下执行，一直遇到下一个 SuspendGenerator，也就是本文第一张图所标示的“第二次暂停”，生成器函数又暂停了。第二次暂停是 yield 123456 带来的。
 
 在 V8 层面 yield 对应的字节码是 SuspendGenerator 和 ResumeGenerator，第二次暂停是 yield 带来的。
 
-
+> yield 会被 V8 编译成 SuspendGenerator 和 ResumeGenerator 两条字节码，分别表示保存状态暂停，恢复状态继续执行
 
 ## async/await 与 generator 的关系
 笔者在另外一篇文章分析过 async/await。async/await 和 generator 都有暂停当前函数执行，从暂停处恢复执行的能力，await 和 yield 对应的字节码都是 SuspendGenerator 和 ResumeGenerator，这方面它们没有区别。
 
-生成器函数需要生成器对象的 next 方法，才可以从暂停处恢复执行。async 函数依赖 Promise，与 microtask 联系紧密，V8 在执行 microtask 队列时，就可以让已经暂停的 async 函数恢复执行。正因为 async 函数集成了 Promise 和 microtask，使得其看起来更同步，写起来逻辑更清晰。
+生成器函数暂停时，需要调用生成器对象的 next 方法，才可以从暂停处恢复执行。async 函数依赖 Promise，与 microtask 联系紧密，V8 在执行 microtask 队列时，已经暂停的 async 函数恢复执行。
 
 ![generator-async](https://raw.githubusercontent.com/xudale/blog/master/assets/generator-async.png)
+
+> V8 源码中，async 函数依赖 Generator 和 Promise
+>
+> Generator 为 async 函数带来保存状态暂停，恢复状态执行的能力。Promise 为 async 函数带来自我驱动向下继续执行的能力，免去 next 的调动
 
 ## 3 种函数
 
@@ -206,7 +209,7 @@ typeof 1 // number
 typeof 0.1 // number
 ```
 
-虽然 1 和 0.1 都是 number，但它们本质上是不同的类型，内存表示不一样，CPU 对整数和浮点数的运算指令也不一样。
+虽然 1 和 0.1 都是 number，但它们本质上是不同的类型，内存表示不一样，CPU 对整数和浮点数的运算指令也不一样，放在一个类型里面，有些勉为其难，但基本相安无事。
 
 ```JavaScript
 function* test() {
@@ -227,9 +230,9 @@ test、test1、test2 在 JavaScript 中的类型都是 function，但在 V8 中�
 
 ![generator-class](https://raw.githubusercontent.com/xudale/blog/master/assets/generator-class.png)
 
-日常开发中，当一个方法需要一个函数做为参数时，比如 forEach 和 map，多半需要的是 ES6 之前的函数，如果误传了 async 函数或者生成器函数，多半会出问题。因为 ES6 之前的函数、async 函数和生成器函数，虽然在 JavaScript 中 typeof 都返回 function，但在 V8 中它们是不同的类型，运行机制和返回值也不一样。
+日常开发中，当一个组件/方法需要一个函数做为参数时，比如 forEach 和 map，多半需要的是 ES6 之前的函数，如果误传了 async 函数或者生成器函数，多半会出问题。因为 ES6 之前的函数、async 函数和生成器函数，虽然在 JavaScript 中 typeof 都返回 function，但在 V8 中它们是不同的类型，运行机制和返回值也不一样。
 
-## 原生 generator 与 babel 转译 generator 的区别
+## 原生 generator 与 babel 转译的区别
 
 日常开发中，生成器函数会被 bebel 转译成类似下面的代码：
 ```JavaScript
@@ -276,12 +279,13 @@ function _test() {
 
 > 人不能两次踏进同一条河流    ——[赫拉克利特](https://baike.baidu.com/item/%E8%B5%AB%E6%8B%89%E5%85%8B%E5%88%A9%E7%89%B9)
 
-test 函数被多次调用，但每次通过 switch case 语句时，走向了不同的分支，闭包保存了函数执行的状态，实现非常巧妙。但与 V8 中生成器函数的原理区别很大。babel 再怎么转，也转不出来字节码 SuspendGenerator 和 ResumeGenerator 的效果。
+babel 转译的代码中，test 函数被多次调用，但每次通过 switch case 语句时，都走向了不同的分支。由于 test 函数内部状态的改变，每次调用 test，都不再是过去的 test，而是一个新的 test。闭包保存了函数执行的状态，实现非常巧妙。但与 V8 中生成器函数的原理区别很大。babel 再怎么转，也转不出来字节码 SuspendGenerator 和 ResumeGenerator。
 
 ## 总结
 
 1.生成器函数被调用时，生成器函数已经开始执行，返回生成器对象后，第一次暂停
-2.iterator.next() 后，生成器函数回到第一次暂停的地方，恢复之前执行的状态，继续执行，遇到 yield 后，第二次暂停
+
+2.iterator.next() 后，生成器函数回到第一次暂停的地方，恢复之前执行的状态，继续执行，遇到 yield（SuspendGenerator） 后，第二次暂停
 
 ![generator-rehab](https://raw.githubusercontent.com/xudale/blog/master/assets/generator-rehab.png)
 
