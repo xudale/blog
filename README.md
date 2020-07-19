@@ -13,3 +13,5 @@
 
 [generator 执行机制分析](https://github.com/xudale/blog/blob/master/generator%20%E6%89%A7%E8%A1%8C%E6%9C%BA%E5%88%B6%E5%88%86%E6%9E%90.md "generator 执行机制分析")
 
+[EventEmitter 源码分析](https://github.com/xudale/blog/blob/master/typeof%20%E4%B8%8E%20Javascript%20%E7%B1%BB%E5%9E%8B%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.md "typeof 与 Javascript 类型源码分析")
+
