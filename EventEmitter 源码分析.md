@@ -1,16 +1,15 @@
-# generator 执行机制分析
-本文以下面代码为例：
+# EventEmitter 源码分析
+EventEmitter 源码核心逻辑很简单，本文主要谈感想，版本为 nodejs 12.16.1。
 
-```JavaScript
-function* test() {
-  yield 123456
-}
-let iterator = test()
-iterator.next() // {value: 123456, done: false}
-```
+## 核心逻辑
+核心逻辑如下图，每个 EventEmitter 的实例有一个属性 _events，_events是一个对象，对象的 key 是事件名称，value 是函数或函数数组。几乎 EventEmitter 实例的所有方法都要操作 _events。
+![eventEmitter](https://raw.githubusercontent.com/xudale/blog/master/assets/eventEmitter.png)
 
-分析 generator 执行机制相关的源码，版本为 V8 7.7.1。
-## let iterator = test()——第一次暂停
+## 反射
+
+## 开枝散叶
+
+## 简易版 EventEmitter
 
 首先，注释掉 iterator.next() 后，在 d8 中运行代码，
 
