@@ -184,7 +184,7 @@ off 方法和 on 方法源码除了逻辑相反外，整体结构类似；取 ev
 
 ## 反射
 
-从不同版本的 EventEmitter 源码来看，Reflect API 的使用频率有增多的趋势。[Reflect](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Reflect) 是一个内置的对象，它提供拦截 JavaScript 操作的方法，对象提供了以下静态方法：
+从不同版本的 EventEmitter 源码来看，Reflect API 的使用频率有增多的趋势。[Reflect](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Reflect) 是一个内置的对象，它提供拦截 JavaScript 操作的方法，Reflect 对象提供了以下静态方法：
 
 ![reflect](https://raw.githubusercontent.com/xudale/blog/master/assets/reflect.png)
 
@@ -343,7 +343,7 @@ Object.keys(obj) // ["a", "b"]
 Reflect.ownKeys(obj) // ["a", "b", Symbol(test)]
 ```
 
-v14.5.0 的 EventEmitter 源码前十几行如下，从 primordials 导入要使用的 JavaScript 内置方法。
+v14.5.0 的 EventEmitter 源码前十几行如下，从 primordials 导入当前文件要使用的 JavaScript 内置方法。
 
 ```JavaScript
 const {
@@ -389,11 +389,13 @@ Stream 继承 EventEmitter 的代码很简单，构造函数里面调用了 Even
 const EE = require('events');
 // 使用 class 后就不用手动设置那两个原型了
 class Stream extends EE {
-
+  constructor(opts) {
+    super(opts)  
+  }
 }
 ```
 
-笔者第一次见 JavaScript 的继承使用 Object.setPrototypeOf 设置原型时，总是感觉万一要写错，就认贼做父了。继承这件事情通常在项目构想阶段确定，JavaScript 运行时动态设置父类的写法看起来有些随意，笔者还是更喜欢和主流编程语言相近的 class 写法。
+笔者第一次见 JavaScript 的继承使用 Object.setPrototypeOf 设置原型时，总是感觉万一要写错，就认贼做父了。继承关系通常在项目构想阶段确定，JavaScript 运行时动态设置父类的写法看起来有些随意，笔者还是更喜欢和主流编程语言相近的 class 写法。
 
 这里还可以期待下 JavaScript 的私有属性，在 nodejs 源码中，有的私有属性使用 _ 开头，如 _events，有的使用 Symbol。但两者都不是真正的私有属性，JavaScript 的私有属性长这样：
 
@@ -409,7 +411,7 @@ class EventEmitter {
 }
 ```
 
-虽然丑，但感情和审美都是可以培养的，从 EventEmitter 源码来看，私有属性还是很有益处的，EventEmitter 并不希望调用者修改 _events，实际上调用者可以修改 _events。
+虽然丑，但感情和审美都是可以培养的，从 EventEmitter 源码来看，私有属性还是很有益处的，EventEmitter 并不希望调用者修改 _events，实际上调用者可以任意修改 _events。
 
 ## 简易版 EventEmitter
 
