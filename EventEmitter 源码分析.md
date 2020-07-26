@@ -395,29 +395,54 @@ class Stream extends EE {
 
 笔者第一次见 JavaScript 的继承使用 Object.setPrototypeOf 设置原型时，总是感觉万一要写错，就认贼做父了。继承这件事情通常在项目构想阶段确定，JavaScript 运行时动态设置父类的写法看起来有些随意，笔者还是更喜欢和主流编程语言相近的 class 写法。
 
+这里还可以期待下 JavaScript 的私有属性，在 nodejs 源码中，有的私有属性使用 _ 开头，如 _events，有的使用 Symbol。但两者都不是真正的私有属性，JavaScript 的私有属性长这样：
+
+```JavaScript
+class EventEmitter {
+  #events = {}; // 私有属性以 # 开头
+  on() {
+
+  }
+  off() {
+
+  }
+}
+```
+
+虽然丑，但感情和审美都是可以培养的，从 EventEmitter 源码来看，私有属性还是很有益处的，EventEmitter 并不希望调用者修改 _events，实际上调用者可以修改 _events。
+
 ## 简易版 EventEmitter
 
 ```JavaScript
 class MyEventEmitter {
+  // 这里使用了私有属性，虽然丑，但感情和审美是可以慢慢培养的
+  // node12 和 chrome 74 可运行
+  #events = {} 
   constructor() {
-    this._events = Object.create(null)
+    this.#events = Object.create(null)
   }
   on(type, listener) {
-    this._events[type] = this._events[type] || []
-    this._events[type].push(listener)
+    this.#events[type] = this.#events[type] || []
+    this.#events[type].push(listener)
     return this
   }
   off(type, listener) {
-    this._events[type] = this._events[type].filter(current => current !== listener)
+    this.#events[type] = this.#events[type].filter(current => current !== listener)
     return this
   }
   emit(type, ...args) {
-    this._events[type].forEach(current => {
+    this.#events[type].forEach(current => {
       Reflect.apply(current, this, args)
     })
   }
 }
+
+// 测试私有属性
+let myOwnEmitter = new MyEventEmitter()
+myOwnEmitter.#events 
 ```
+
+![private](https://raw.githubusercontent.com/xudale/blog/master/assets/private.png)
 
 MyEventEmitter 不到 20 行，只有基本逻辑，没有做任何参数校验，不能用于实际生产环境。nodejs 中的 EventEmitter 实现参数校验、异常情况、旧版本兼容和性能调优的代码量要 10 倍于基本逻辑的代码量。
 
