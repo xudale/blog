@@ -418,7 +418,7 @@ class EventEmitter {
 ```JavaScript
 class MyEventEmitter {
   // 这里使用了私有属性，虽然丑，但感情和审美是可以慢慢培养的
-  // node12 和 chrome 74 可运行
+  // node 12 和 chrome 74 可运行
   #events = Object.create(null) 
   on(type, listener) {
     this.#events[type] = this.#events[type] || []
