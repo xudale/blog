@@ -275,10 +275,139 @@ void Builtins::Generate_FunctionPrototypeApply(MacroAssembler* masm) {
 
 逻辑和 Generate_ReflectApply 差不多，取 3 个参数放在 3 个寄存器，最后调用 CallWithArrayLike。所以 Reflect 对象的方法性能不见得比 Function 和 Object 的对应方法性能更优秀，只是可读性更高而已。
 
+今天（2020.07） nodejs 的最新版本 v14.5.0 的 EventEmitter 源码与本文的版本 v12.16.1 比较，可以看到 v14.5.0 把 Object.keys 替换为 Reflect.keys：
 
+```c++
+// v12.16.1
+EventEmitter.prototype.removeAllListeners =
+    function removeAllListeners(type) {
+      const events = this._events;
+      // Emit removeListener for all listeners on all events
+      if (arguments.length === 0) {
+        // 这里用 Object.keys 遍历 events
+        for (const key of ObjectKeys(events)) {
+          if (key === 'removeListener') continue;
+          this.removeAllListeners(key);
+        }
+        this.removeAllListeners('removeListener');
+        this._events = ObjectCreate(null);
+        this._eventsCount = 0;
+        return this;
+      }
+
+      const listeners = events[type];
+
+      if (typeof listeners === 'function') {
+        this.removeListener(type, listeners);
+      } else if (listeners !== undefined) {
+        // LIFO order
+        for (let i = listeners.length - 1; i >= 0; i--) {
+          this.removeListener(type, listeners[i]);
+        }
+      }
+
+      return this;
+    };
+```
+
+```c++
+// v14.5.0
+EventEmitter.prototype.removeAllListeners =
+    function removeAllListeners(type) {
+      const events = this._events;
+      // Emit removeListener for all listeners on all events
+      if (arguments.length === 0) {
+        // 最新版本用 Reflect.ownKeys 遍历 events
+        for (const key of ReflectOwnKeys(events)) {
+          if (key === 'removeListener') continue;
+          this.removeAllListeners(key);
+        }
+        this.removeAllListeners('removeListener');
+        this._events = ObjectCreate(null);
+        this._eventsCount = 0;
+        return this;
+      }
+
+      const listeners = events[type];
+
+      if (typeof listeners === 'function') {
+        this.removeListener(type, listeners);
+      } else if (listeners !== undefined) {
+        // LIFO order
+        for (let i = listeners.length - 1; i >= 0; i--) {
+          this.removeListener(type, listeners[i]);
+        }
+      }
+
+      return this;
+    };
+```
+
+使用 Reflect.ownKeys 比 Object.keys 要更合理，因为 Object.keys 返回的数组中没有 Symbol。
+
+考虑到事件名称可以是 Symbol，比如：
+
+```JavaScript
+const EventEmitter = require('events');
+class MyEmitter extends EventEmitter {}
+const myEmitter = new MyEmitter();
+// 这里用 Symbol 当做事件名称
+let sy = Symbol('abc')
+myEmitter.on(sy, () => {
+  console.log('Symbol event occured');
+});
+myEmitter.emit(sy);
+```
+
+v14.5.0 的 EventEmitter 源码前十几行是这样的：
+
+```JavaScript
+const {
+  Boolean,
+  Error,
+  MathMin,
+  NumberIsNaN,
+  ObjectCreate,
+  ObjectDefineProperty,
+  ObjectGetPrototypeOf,
+  ObjectSetPrototypeOf,
+  Promise,
+  PromiseReject,
+  PromiseResolve,
+  ReflectApply,
+  ReflectOwnKeys,
+  Symbol,
+  SymbolFor,
+  SymbolAsyncIterator
+} = primordials;
+```
+
+从 nodejs 不同版本 EventEmitter 源码来看，ObjectDefineProperty、ObjectGetPrototypeOf 和 ObjectSetPrototypeOf 早晚会被 Reflect.defineProperty、Reflect.getPrototypeOf 和 Reflect.setPrototypeOf 方法所取代。
 
 
 ## 开枝散叶
+
+EventEmitter 是很多类的父类，本小节分析 EventEmitter 是如何喜当爹的。笔者看了几处代码，写法都差不多，这里以 Stream 举例，Stream 构造函数源码如下：
+
+```JavaScript
+const EE = require('events');
+function Stream(opts) {
+  EE.call(this, opts);
+}
+ObjectSetPrototypeOf(Stream.prototype, EE.prototype);
+ObjectSetPrototypeOf(Stream, EE);
+```
+
+Stream 继承 EventEmitter 的代码很简单，构造函数里面先是调用了 EventEmitter 的构造函数。分别设置了 Stream.prototype 和 Stream 的原型为 EE.prototype 和 EE。可以看出写法上已经极力向 class 写法靠拢。nodejs 源码很喜欢用比较新的 API 或 语法，笔者觉得未来有一天，这段代码可能会变成这样：
+
+```JavaScript
+const EE = require('events');
+class MyStream extends EE {
+
+}
+```
+
+笔者是半路出家做的前端，第一次见 JavaScript 的继承 Object.setPrototypeOf 的写法时，总是感觉万一要是写错了，就认贼做父了。而且继承这件事情通常在代码还没运行前的项目构想阶段就已经确定了，JavaScript 动态设置父类的写法总是有点奇怪。笔者还是更喜欢 class 写法。
 
 ## 简易版 EventEmitter
 
