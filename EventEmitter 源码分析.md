@@ -269,7 +269,7 @@ void Builtins::Generate_FunctionPrototypeApply(MacroAssembler* masm) {
 
 逻辑和 Generate_ReflectApply 差不多，取 3 个参数放在 3 个寄存器，最后还是调用 CallWithArrayLike。所以 Reflect 对象的方法性能不见得比 Function 和 Object 的对应方法更强，只是可读性更高而已。
 
-今天（2020.07.18）nodejs 的最新版本为 v14.5.0，把最新版本的 EventEmitter 源码与 v12.16.1 比较，可以看到 v14.5.0 把 Object.keys 替换为 Reflect.keys：
+今天（2020.07.18）nodejs 的最新版本为 v14.5.0，把最新版本的 EventEmitter 源码与 v12.16.1 比较，可以看到 v14.5.0 把 Object.keys 替换为 Reflect.ownKeys
 
 ```c++
 // v12.16.1
@@ -412,6 +412,9 @@ class EventEmitter {
 ```
 
 虽然丑，但感情和审美都是可以培养的，从 EventEmitter 源码来看，私有属性还是很有益处的，EventEmitter 并不希望调用者修改 _events，实际上调用者可以任意修改 _events。
+
+> _ 开头的属性不是真正的私有属性，_ 只是它伪装成私有属性的保护色
+> # 开头的属性，才是真正的私有属性
 
 ## 简易版 EventEmitter
 
