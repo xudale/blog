@@ -79,29 +79,154 @@ module.exports = {
 
 cpus 通过调用 getCPUs 得到 data 数组，里面存储的是 CPU 相关的信息，data 数组的长度就是 CPU 的核心数。JS 层只是简单包装了一下 C++ 层的 getCPUs。
 ## C++
-getCPUs 方法的源码位于 src/node_os.cc
+getCPUs 方法的源码位于 src/node_os.cc，粘贴如下：
+
+```c++
+static void GetCPUInfo(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  Isolate* isolate = env->isolate();
+
+  uv_cpu_info_t* cpu_infos;
+  int count;
+  // 本质还是调用 libuv 的 uv_cpu_info 获取 CPU 信息
+  int err = uv_cpu_info(&cpu_infos, &count);
+  if (err)
+    return;
+
+  // 代码运行到这里 cpu_infos 已经保存了 CPU 的信息，count 是核心数
+  std::vector<Local<Value>> result(count * 7);
+  for (int i = 0, j = 0; i < count; i++) {
+    uv_cpu_info_t* ci = cpu_infos + i;
+    result[j++] = OneByteString(isolate, ci->model);
+    // Number::New 在 C++ 中创建一个 JavaScript 的 Number 对象
+    result[j++] = Number::New(isolate, ci->speed);
+    result[j++] = Number::New(isolate, ci->cpu_times.user);
+    result[j++] = Number::New(isolate, ci->cpu_times.nice);
+    result[j++] = Number::New(isolate, ci->cpu_times.sys);
+    result[j++] = Number::New(isolate, ci->cpu_times.idle);
+    result[j++] = Number::New(isolate, ci->cpu_times.irq);
+  }
+
+  uv_free_cpu_info(cpu_infos, count);
+  // Array::New 在 C++ 中创建一个 JavaScript 的 Array 对象
+  // Array::New(isolate, result.data(), result.size()) 就是 JS 层的 data
+  // const data = getCPUs()
+  args.GetReturnValue().Set(Array::New(isolate, result.data(), result.size()));
+}
+
+void Initialize(Local<Object> target,
+                Local<Value> unused,
+                Local<Context> context,
+                void* priv) {
+  Environment* env = Environment::GetCurrent(context);
+  env->SetMethod(target, "getCPUs", GetCPUInfo);
+}
+```
+
+JS 层的 getCPUs 方法，实际调用的是 C++ 层的 GetCPUInfo 函数，GetCPUInfo 代码不多，仅仅是对 libuv 中 uv_cpu_info 的包装。由于 GetCPUInfo 要把返回结果传给 JS 层，所以要把相应的 C++ 语言的整数转换成 JavaScript 的 Number:
+
+```c++
+result[j++] = Number::New(isolate, ci->speed);
+```
+
+还要把 C++ 语言的 std::vector 转换成 JavaScript 的 Array:
+
+```c++
+Array::New(isolate, result.data(), result.size());
+```
+
+在 V8.h 中，Array::New 声明如下：
+
+```c++
+/**
+ * An instance of the built-in array constructor (ECMA-262, 15.4.2).
+ */
+class V8_EXPORT Array : public Object {
+ public:
+  uint32_t Length() const;
+  /**
+   * Creates a JavaScript array out of a Local<Value> array in C++
+   * with a known length.
+   */
+  static Local<Array> New(Isolate* isolate, Local<Value>* elements,
+                          size_t length);
+  V8_INLINE static Array* Cast(Value* obj);
+};
+```
+
+JavaScript 与 C++ 函数的互相调用，C++ 的工作量要大一些。因为 C++ 是 JavaScript 的底层，只要研究足够深入，在 C++ 层面可以透澈看到 JavaScript 对象的一切，反之则不行。 JavaScript 调用 C++ 的方法，需要在 C++ 层面把返回值转成 JavaScript 语言的类型，Number::New 和 Array::New 做的就是这样的转换工作。
+
+C++ 层的 GetCPUInfo 函数工作量并不多，只是包装了一下 libuv 的 uv_cpu_info。
+
 ## C
-deps/uv/src/unix/darwin.c
-## Mac OS
 
-## Assembly
-deps/v8/src/api/api.cc
+进入了传说中的 libuv，笔者的电脑是 Mac，uv_cpu_info 真正运行的源码位于 deps/uv/src/unix/darwin.c，这部分代码是 C 语言，不是 C++，粘贴如下：
 
-## 核心逻辑
-核心逻辑如下图，EventEmitter 的实例有属性 _events，_events 是一个对象，对象的 key 是事件名称，value 是函数或函数数组。EventEmitter 的所有方法几乎都围绕 _events 展开。
-![eventEmitter](https://raw.githubusercontent.com/xudale/blog/master/assets/eventEmitter.png)
+```c
+int uv_cpu_info(uv_cpu_info_t** cpu_infos, int* count) {
+  unsigned int ticks = (unsigned int)sysconf(_SC_CLK_TCK),
+               multiplier = ((uint64_t)1000L / ticks);
+  char model[512];
+  uint64_t cpuspeed;
+  size_t size;
+  unsigned int i;
+  natural_t numcpus; // natural_t 是整数类型
+  mach_msg_type_number_t msg_type; // mach_msg_type_number_t 也是整数类型
+  processor_cpu_load_info_data_t *info;
+  uv_cpu_info_t* cpu_info; // 无缝衔接上节的 cpu_info
 
-### EventEmitter 构造函数
+  size = sizeof(model);
+  // 获取 CPU brand_string 到 model，本机是 Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz
+  if (sysctlbyname("machdep.cpu.brand_string", &model, &size, NULL, 0) &&
+      sysctlbyname("hw.model", &model, &size, NULL, 0)) {
+    return UV__ERR(errno);
+  }
 
-EventEmitter 构造函数源码如下：
-```JavaScript
+  size = sizeof(cpuspeed);
+  //  获取 CPU 频率到 cpuspeed，本机是 2700000000
+  if (sysctlbyname("hw.cpufrequency", &cpuspeed, &size, NULL, 0))
+    return UV__ERR(errno);
+  // 获取 CPU 时间相关的信息到 info，numcpus 表示核心数
+  if (host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &numcpus,
+                          (processor_info_array_t*)&info,
+                          &msg_type) != KERN_SUCCESS) {
+    return UV_EINVAL;  /* FIXME(bnoordhuis) Translate error. */
+  }
 
+  *cpu_infos = uv__malloc(numcpus * sizeof(**cpu_infos));
+  if (!(*cpu_infos)) {
+    vm_deallocate(mach_task_self(), (vm_address_t)info, msg_type);
+    return UV_ENOMEM;
+  }
+
+  *count = numcpus;
+  // 将 info 中的信息赋值给 cpu_info 相应字段
+  for (i = 0; i < numcpus; i++) {
+    cpu_info = &(*cpu_infos)[i];
+
+    cpu_info->cpu_times.user = (uint64_t)(info[i].cpu_ticks[0]) * multiplier;
+    cpu_info->cpu_times.nice = (uint64_t)(info[i].cpu_ticks[3]) * multiplier;
+    cpu_info->cpu_times.sys = (uint64_t)(info[i].cpu_ticks[1]) * multiplier;
+    cpu_info->cpu_times.idle = (uint64_t)(info[i].cpu_ticks[2]) * multiplier;
+    cpu_info->cpu_times.irq = 0;
+
+    cpu_info->model = uv__strdup(model);
+    cpu_info->speed = cpuspeed/1000000;
+  }
+  vm_deallocate(mach_task_self(), (vm_address_t)info, msg_type);
+
+  return 0;
+}
+```
+
+uv_cpu_info 源码较长，还有我们之前没有见过的函数和类型，它们都来自 Mac OS。对好学的前端来说，这些 API 都不具备深入学习的价值，所以笔者抽取相关代码整理了一个 demo，可直接在 Xcode 中运行，可自行体会。
+
+```c
 #include <mach/mach.h>
 #include <sys/sysctl.h>
 #include <stdio.h>
 
 int uv_cpu_info() {
-    printf("uv_cpu_info\n");
     char model[512];
     uint64_t cpuspeed;
     size_t size;
@@ -125,25 +250,31 @@ int uv_cpu_info() {
     
     return 0;
 }
-void __cpuid(int cpu_info[4], int info_type) {
-    __asm__ volatile("cpuid \n\t"
-                     : "=a"(cpu_info[0]), "=b"(cpu_info[1]), "=c"(cpu_info[2]),
-                     "=d"(cpu_info[3])
-                     : "a"(info_type), "c"(0));
-}
+
 int main(int argc, const char * argv[]) {
     uv_cpu_info();
-    int brand[12];
-//    int cpu_info[4];
-    __cpuid(&brand[0], 0x80000002);
-    __cpuid(&brand[4], 0x80000003);
-    __cpuid(&brand[8], 0x80000004);
-    printf("Brand: %s\n", (char *)brand);
     return 0;
 }
 ```
 
-EventEmitter 构造函数的主要工作是初始化 _events，当实例自身没有 _events 属性时，执行 this._events = ObjectCreate(null)，ObjectGetPrototypeOf 实际上是 Object.getPrototypeOf 的别名，用于获取实例的原型。
+在 Xcode 中运行结果如下：
+
+![mach_host_self](https://raw.githubusercontent.com/xudale/blog/master/assets/mach_host_self.png)
+
+## Mac OS
+
+## Assembly
+deps/v8/src/api/api.cc
+
+## 核心逻辑
+核心逻辑如下图，EventEmitter 的实例有属性 _events，_events 是一个对象，对象的 key 是事件名称，value 是函数或函数数组。EventEmitter 的所有方法几乎都围绕 _events 展开。
+![eventEmitter](https://raw.githubusercontent.com/xudale/blog/master/assets/eventEmitter.png)
+
+### EventEmitter 构造函数
+
+EventEmitter 构造函数源码如下：
+
+
 
 ### EventEmitter.prototype.on
 
