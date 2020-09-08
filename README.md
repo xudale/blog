@@ -13,5 +13,7 @@
 
 [generator 执行机制分析](https://github.com/xudale/blog/blob/master/generator%20%E6%89%A7%E8%A1%8C%E6%9C%BA%E5%88%B6%E5%88%86%E6%9E%90.md "generator 执行机制分析")
 
-[EventEmitter 源码分析](https://github.com/xudale/blog/blob/master/EventEmitter%20%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.md "typeof 与 Javascript 类型源码分析")
+[EventEmitter 源码分析](https://github.com/xudale/blog/blob/master/EventEmitter%20%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.md "EventEmitter 源码分析")
+
+[Nodejs 如何获取 CPU 信息](https://github.com/xudale/blog/blob/master/Nodejs%20%E5%A6%82%E4%BD%95%E8%8E%B7%E5%8F%96%20CPU%20%E4%BF%A1%E6%81%AF.md "Nodejs 如何获取 CPU 信息")
 

@@ -9,10 +9,77 @@
 | MacBook Pro      | 13-inch, Early 2011 |
 | CPU      | 2.7 GHz Intel Core i7 |
 | Xcode      | 9.4.1 |
+
+Nodejs 获取 CPU 信息十分简单，加载 os 模块后，调用其 cpus 方法就可获取 CPU 信息，代码如下：
+
+```JavaScript
+const os = require('os');
+const cpus = os.cpus()
+console.log(cpus)
+// 输出
+[
+  {
+    model: 'Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz',
+    speed: 2700,
+    times: { user: 987260, nice: 0, sys: 859740, idle: 2834280, irq: 0 }
+  },
+  {
+    model: 'Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz',
+    speed: 2700,
+    times: { user: 604020, nice: 0, sys: 288860, idle: 3624470, irq: 0 }
+  },
+  {
+    model: 'Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz',
+    speed: 2700,
+    times: { user: 977040, nice: 0, sys: 584940, idle: 2955370, irq: 0 }
+  },
+  {
+    model: 'Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz',
+    speed: 2700,
+    times: { user: 600650, nice: 0, sys: 272840, idle: 3643860, irq: 0 }
+  }
+]
+```
+
+相关源码也很有层次性，从 JS -> C++ -> C -> 操作系统，下面逐层分析。
+
 ## JS
-lib/os.js line 97
+cpus 方法的源码位于 lib/os.js，粘贴如下：
+
+```JavaScript
+const {
+  getCPUs
+} = internalBinding('os');
+
+function cpus() {
+  // [] is a bugfix for a regression introduced in 51cea61
+  const data = getCPUs() || [];
+  const result = [];
+  let i = 0;
+  while (i < data.length) {
+    result.push({
+      model: data[i++],
+      speed: data[i++],
+      times: {
+        user: data[i++],
+        nice: data[i++],
+        sys: data[i++],
+        idle: data[i++],
+        irq: data[i++]
+      }
+    });
+  }
+  return result;
+}
+
+module.exports = {
+  cpus
+};
+```
+
+cpus 通过调用 getCPUs 得到 data 数组，里面存储的是 CPU 相关的信息，data 数组的长度就是 CPU 的核心数。JS 层只是简单包装了一下 C++ 层的 getCPUs。
 ## C++
-src/node_os.cc
+getCPUs 方法的源码位于 src/node_os.cc
 ## C
 deps/uv/src/unix/darwin.c
 ## Mac OS
