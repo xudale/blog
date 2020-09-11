@@ -1,6 +1,5 @@
 # Nodejs 如何获取 CPU 信息
 
-基于 Mac，环境如下：
 | 环境       |    版本 |
 | --------  | -------- |
 | Nodejs    | 12.16.1 |
@@ -10,7 +9,7 @@
 | CPU      | 2.7 GHz Intel Core i7 |
 | Xcode      | 9.4.1 |
 
-Nodejs 获取 CPU 信息十分简单，加载 os 模块后，调用其 cpus 方法就可获取 CPU 信息，代码如下：
+Nodejs 获取 CPU 信息十分简单，加载 os 模块后，调用其 cpus 方法即可，代码如下：
 
 ```JavaScript
 const os = require('os');
@@ -41,7 +40,7 @@ console.log(cpus)
 ]
 ```
 
-相关源码也很有层次性，从 JS -> C++ -> C -> 操作系统，下面逐层分析。
+相关源码也很有层次性，从 JS -> C++ -> C -> Mac OS，下面逐层分析。
 
 ## JS
 cpus 方法的源码位于 lib/os.js，粘贴如下：
@@ -77,7 +76,7 @@ module.exports = {
 };
 ```
 
-cpus 通过调用 getCPUs 得到 data 数组，里面存储的是 CPU 相关的信息，data 数组的长度就是 CPU 的核心数。JS 层只是简单包装了一下 C++ 层的 getCPUs。
+cpus 通过调用 getCPUs 得到 data 数组，data 数组里面存储的是 CPU 相关的信息，data 数组的长度就是 CPU 的核心数。JS 层的 cpus 只是简单包装了一下 C++ 层的 getCPUs。
 ## C++
 getCPUs 方法的源码位于 src/node_os.cc，粘贴如下：
 
@@ -88,12 +87,14 @@ static void GetCPUInfo(const FunctionCallbackInfo<Value>& args) {
 
   uv_cpu_info_t* cpu_infos;
   int count;
+  // GetCPUInfo 不生产 CPU 信息，
   // 本质还是调用 libuv 的 uv_cpu_info 获取 CPU 信息
   int err = uv_cpu_info(&cpu_infos, &count);
   if (err)
     return;
 
   // 代码运行到这里 cpu_infos 已经保存了 CPU 的信息，count 是核心数
+  // std::vector 类似 JavaScript 的数组
   std::vector<Local<Value>> result(count * 7);
   for (int i = 0, j = 0; i < count; i++) {
     uv_cpu_info_t* ci = cpu_infos + i;
@@ -109,7 +110,8 @@ static void GetCPUInfo(const FunctionCallbackInfo<Value>& args) {
 
   uv_free_cpu_info(cpu_infos, count);
   // Array::New 在 C++ 中创建一个 JavaScript 的 Array 对象
-  // Array::New(isolate, result.data(), result.size()) 就是 JS 层的 data
+  // Array::New(isolate, result.data(), result.size()) 
+  // 的结果就是 JS 层 cpus 的 data 变量
   // const data = getCPUs()
   args.GetReturnValue().Set(Array::New(isolate, result.data(), result.size()));
 }
@@ -123,15 +125,16 @@ void Initialize(Local<Object> target,
 }
 ```
 
-JS 层的 getCPUs 方法，实际调用的是 C++ 层的 GetCPUInfo 函数，GetCPUInfo 代码不多，仅仅是对 libuv 中 uv_cpu_info 的包装。由于 GetCPUInfo 要把返回结果传给 JS 层，所以要把相应的 C++ 语言的整数转换成 JavaScript 的 Number:
+JS 层的 getCPUs 方法，实际是 C++ 层的 GetCPUInfo 函数，GetCPUInfo 代码不多，仅仅是对 libuv 中 uv_cpu_info 的包装。由于 GetCPUInfo 要把返回结果传给 JS 层，所以要把 C++ 的整数转换成 JavaScript 的 Number:
 
 ```c++
 result[j++] = Number::New(isolate, ci->speed);
 ```
 
-还要把 C++ 语言的 std::vector 转换成 JavaScript 的 Array:
+还要把 C++ 的 std::vector 转换成 JavaScript 的 Array:
 
 ```c++
+std::vector<Local<Value>> result(count * 7);
 Array::New(isolate, result.data(), result.size());
 ```
 
@@ -150,27 +153,26 @@ class V8_EXPORT Array : public Object {
    */
   static Local<Array> New(Isolate* isolate, Local<Value>* elements,
                           size_t length);
-  V8_INLINE static Array* Cast(Value* obj);
 };
 ```
 
-JavaScript 与 C++ 函数的互相调用，C++ 的工作量要大一些。因为 C++ 是 JavaScript 的底层，只要研究足够深入，在 C++ 层面可以透澈看到 JavaScript 对象的一切，反之则不行。 JavaScript 调用 C++ 的方法，需要在 C++ 层面把返回值转成 JavaScript 语言的类型，Number::New 和 Array::New 做的就是这样的转换工作。
+JavaScript 与 C++ 函数的互相调用，C++ 层面的工作量要大一些。因为 C++ 是 JavaScript 的底层，只要研究足够深入，在 C++ 层面可以透澈看到 JavaScript 对象的一切，比如地址和内存布局，反之则不行。JavaScript 调用 C++ 的方法，需要在 C++ 层面把返回值转成 JavaScript 语言的类型，Number::New 和 Array::New 做的就是这样的类型转换工作。
 
-C++ 层的 GetCPUInfo 函数工作量并不多，只是包装了一下 libuv 的 uv_cpu_info。
+C++ 层的 GetCPUInfo 函数工作量并不多，只是包装了一下 libuv 的 uv_cpu_info，还要继续往下看。
 
 ## C
 
-进入了传说中的 libuv，笔者的电脑是 Mac，uv_cpu_info 真正运行的源码位于 deps/uv/src/unix/darwin.c，这部分代码是 C 语言，不是 C++，粘贴如下：
+进入了传说中的 libuv，笔者的电脑是 Mac，在 Mac 下 uv_cpu_info 真正运行的源码位于 deps/uv/src/unix/darwin.c，这部分代码是 C 语言，不是 C++，粘贴如下：
 
 ```c
 int uv_cpu_info(uv_cpu_info_t** cpu_infos, int* count) {
   unsigned int ticks = (unsigned int)sysconf(_SC_CLK_TCK),
                multiplier = ((uint64_t)1000L / ticks);
-  char model[512];
-  uint64_t cpuspeed;
+  char model[512]; // brand 字符串，本机是 Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz
+  uint64_t cpuspeed; // cpu 频率
   size_t size;
   unsigned int i;
-  natural_t numcpus; // natural_t 是整数类型
+  natural_t numcpus; // CPU 核心数，natural_t 是整数类型
   mach_msg_type_number_t msg_type; // mach_msg_type_number_t 也是整数类型
   processor_cpu_load_info_data_t *info;
   uv_cpu_info_t* cpu_info; // 无缝衔接上节的 cpu_info
@@ -219,7 +221,7 @@ int uv_cpu_info(uv_cpu_info_t** cpu_infos, int* count) {
 }
 ```
 
-uv_cpu_info 源码较长，还有我们之前没有见过的函数和类型，它们都来自 Mac OS。对好学的前端来说，这些 API 都不具备深入学习的价值，所以笔者抽取相关代码整理了一个 demo，可直接在 Xcode 中运行，可自行体会。
+uv_cpu_info 源码较长，还有我们之前没有见过的函数和类型，它们都来自 Mac OS。对好学的前端来说，这些 API 都不具备深入学习的价值，所以笔者抽取相关代码整理了一个 demo，可直接在 Xcode 中运行，请自行体会。
 
 ```c
 #include <mach/mach.h>
@@ -263,7 +265,9 @@ int main(int argc, const char * argv[]) {
 
 ## Mac OS
 
-Mac 内核已开源，[darwin-xnu](https://github.com/apple/darwin-xnu)，但笔者下载后 make 就报错。笔者只看最简单的 sysctlbyname("machdep.cpu.brand_string", &model, &size, NULL, 0) 的源码。大概是 machdep.cpu.brand_string 会被解析，从树上找到相应的节点，从节点里找到一个函数，调用函数就得到了 cpu brand_string：Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz。笔者不确定，不清楚，不知道。有一点可以确定，Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz 这个字符串是通过 cpuid 指令获取的。
+Mac 内核已开源，或者部分开源，地址 [darwin-xnu](https://github.com/apple/darwin-xnu)，但笔者下载后 make 就报错。
+
+笔者只看了 sysctlbyname("machdep.cpu.brand_string", &model, &size, NULL, 0) 相关的源码。大概是 machdep.cpu.brand_string 会被解析，从树上找到相应的节点，从节点里找到一个函数，调用函数就得到了 cpu brand_string：Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz。笔者是内核的小白，不太确定。但有一点可以确定，Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz 这个字符串是通过 cpuid 指令获取的。
 
 ```c++
 从 https://github.com/apple/darwin-xnu/blob/master/bsd/dev/arm64/sysctl.c#L146 复制的
@@ -280,7 +284,7 @@ Mac 内核已开源，[darwin-xnu](https://github.com/apple/darwin-xnu)，但笔
 
 ## cpuid
 
-在 Intel 平台上获取 CPU 的信息，除了 cpuid，似乎没有别的办法，cpuid 是 x86 处理器的一条指令，可以获取 CPU 的信息，V8 有调用 cpuid 来判断当前 CPU 是否支持某些特定指令，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/tags/7.8.279.23/src/base/cpu.cc#358)：
+cpuid 是 x86 处理器的一条指令，可以获取 CPU 的信息，比如核心数、是否支持某些指令集、厂商等。V8 有调用 cpuid 来判断当前 CPU 是否支持某些特定指令，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/tags/7.8.279.23/src/base/cpu.cc#358)：
 
 ```c++
 __cpuid(cpu_info, 1); // __cpuid 是 V8 对 cpuid 指令的封装
@@ -300,14 +304,15 @@ has_avx_ = (cpu_info[2] & 0x10000000) != 0;
 has_fma3_ = (cpu_info[2] & 0x00001000) != 0;
 ```
 
-比如 has_fpu_ 表示是否有浮点数运算处理器，浮点数运算不精确和它有关系，has_sse 开头的几个变量和 SIMD 有关，JavaScript 的 SIMD 归根到底还是要编译成 CPU 的 SIMD 指令，纯靠软件是做不到单条指令多个数据的(Single Instruction Multiple Data)。
+比如 has_fpu_ 表示是否有浮点数运算处理器，浮点数运算不精确和它有关系，has_sse 开头的几个变量和 SIMD 有关，JavaScript 的 SIMD 归根到底还是要编译成 CPU 的 SIMD 指令，纯靠软件做不到单条指令多个数据(Single Instruction Multiple Data)。软件是串行执行的，优化到极限也改变不了串行执行的特点，想要并行，要靠硬件。
 
-高级语言的赋值编译成汇编语言的 mov，高级语言的分支编译成汇编语言的条件跳转，似乎高级语言并没有和 cpuid 相对应的语法。V8 的 __cpuid 函数使用内联汇编封装了下 cpuid 指令，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/tags/7.8.279.23/src/base/cpu.cc#55)：
+高级语言的赋值编译成汇编语言的 mov，高级语言的分支编译成汇编语言的条件跳转，似乎高级语言并没有和 cpuid 相对应的语法。V8 的 __cpuid 函数使用内联汇编封装了 cpuid 指令，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/tags/7.8.279.23/src/base/cpu.cc#55)：
 
 ```c++
 static V8_INLINE void __cpuid(int cpu_info[4], int info_type) {
 // Clear ecx to align with __cpuid() of MSVC:
 // https://msdn.microsoft.com/en-us/library/hskdteyh.aspx
+// 宏定义搭配内联汇编，不要在意细节，把内联汇编当普通汇编看就好
 #if defined(__i386__) && defined(__pic__)
   // Make sure to preserve ebx, which contains the pointer
   // to the GOT in case we're generating PIC.
@@ -327,7 +332,7 @@ static V8_INLINE void __cpuid(int cpu_info[4], int info_type) {
 }
 ```
 
-笔者对 V8 中 cpuid 相关的代码稍作整理，并参考 Intel 软件手册，写了一个例子，获取 CPU 的 brand string，可直接在 Xcode 中运行。
+大多数前端看到上面的代码应该是比较吃力的。笔者对 V8 中 cpuid 相关的代码稍作整理，并参考 Intel 软件手册，写了一个例子，获取 CPU 的 brand string，可直接在 Xcode 中运行。
 
 ![brandString](https://raw.githubusercontent.com/xudale/blog/master/assets/brandString.png)
 
@@ -365,7 +370,7 @@ int main(int argc, const char * argv[]) {
 
 [深入 Nodejs 源码探究 CPU 信息的获取与利用率计算](https://zhuanlan.zhihu.com/p/126334155)
 
-因为深入 Nodejs 源码探究 CPU 信息的获取与利用率计算写的很好，本文在相似内容上没有多费笔墨，感兴趣的同学可[移驾](https://zhuanlan.zhihu.com/p/126334155)
+因为第 2 篇文章写的很好，本文在相似内容上没有多费笔墨，感兴趣的同学可[移驾](https://zhuanlan.zhihu.com/p/126334155)
 
 
 
