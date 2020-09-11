@@ -263,9 +263,22 @@ int main(int argc, const char * argv[]) {
 
 ## Mac OS
 
-笔者不确定与本文相关的代码是否开源，本小节存在的目的是为了保持本文 JS -> C++ -> C -> 操作系统的层次结构。
+Mac 内核已开源，[darwin-xnu](https://github.com/apple/darwin-xnu)，但笔者下载后 make 就报错。笔者只看最简单的 sysctlbyname("machdep.cpu.brand_string", &model, &size, NULL, 0) 的源码。大概是 machdep.cpu.brand_string 会被解析，从树上找到相应的节点，从节点里找到一个函数，调用函数就得到了 cpu brand_string：Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz。笔者不确定，不清楚，不知道。有一点可以确定，Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz 这个字符串是通过 cpuid 指令获取的。
 
-## Assembly
+```c++
+从 https://github.com/apple/darwin-xnu/blob/master/bsd/dev/arm64/sysctl.c#L146 复制的
+/*
+ * machdep.cpu.brand_string
+ *
+ * x86: derived from CPUID data.
+ * ARM: cons something up from the CPUID register. Could include cpufamily
+ *  here and map it to a "marketing" name, but there's no obvious need;
+ *      the value is already exported via the commpage. So keep it simple.
+ */
+```
+
+
+## cpuid
 
 在 Intel 平台上获取 CPU 的信息，除了 cpuid，似乎没有别的办法，cpuid 是 x86 处理器的一条指令，可以获取 CPU 的信息，V8 有调用 cpuid 来判断当前 CPU 是否支持某些特定指令，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/tags/7.8.279.23/src/base/cpu.cc#358)：
 
@@ -343,6 +356,10 @@ int main(int argc, const char * argv[]) {
 ![brandExample](https://raw.githubusercontent.com/xudale/blog/master/assets/brandExample.png)
 
 ## 总结
+
+## 参考文献
+
+
 
 
 
