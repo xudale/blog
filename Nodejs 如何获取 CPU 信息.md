@@ -357,7 +357,16 @@ int main(int argc, const char * argv[]) {
 
 ## 总结
 
+![cpuidbrand](https://raw.githubusercontent.com/xudale/blog/master/assets/cpuidbrand.png)
+
 ## 参考文献
+
+[从os.cpus()来分析nodejs源码结构](https://cnodejs.org/topic/569dc6e8e6816bdc6dab52fb)
+
+[深入 Nodejs 源码探究 CPU 信息的获取与利用率计算](https://zhuanlan.zhihu.com/p/126334155)
+
+因为深入 Nodejs 源码探究 CPU 信息的获取与利用率计算写的很好，本文在相似内容上没有多费笔墨，感兴趣的同学可[移驾](https://zhuanlan.zhihu.com/p/126334155)
+
 
 
 
