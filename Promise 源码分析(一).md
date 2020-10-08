@@ -39,14 +39,15 @@ extern class JSPromise extends JSObject {
   }
 
   macro SetStatus(status: constexpr PromiseState): void {
-    // 
+    // 第 1 个 assert 表示只有 pending 状态的 Promise 才可以被改变状态
     assert(this.Status() == PromiseState::kPending);
+    // 第 2 个 assert 表示 Promise 创建成功后，不可将 Promise 设置为 pending 状态
     assert(status != PromiseState::kPending);
-
     this.flags.status = status;
   }
 
   macro HasHandler(): bool {
+    // 判断 Promise 是否有处理函数
     return this.flags.has_handler;
   }
 
