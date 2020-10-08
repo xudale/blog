@@ -69,11 +69,11 @@ extern class JSPromise extends JSObject {
 const myPromise1 = new Promise((resolve, reject) => {
   reject()
 })
-````
+```
 
 在 node-v14.13.0 环境下执行，结果如下：
 
-![mach_host_self](https://raw.githubusercontent.com/xudale/blog/master/assets/mach_host_self.png)
+![unhandleReject](https://raw.githubusercontent.com/xudale/blog/master/assets/unhandleReject.png)
 
 大意是说处于 rejected 状态的 Promise 必须有处理函数。当把处理函数加上以后，代码如下：
 
@@ -83,7 +83,7 @@ const myPromise1 = new Promise((resolve, reject) => {
 })
 
 myPromise1.then(console.log, console.log)
-````
+```
 
 在 node-v14.13.0 环境下执行，没有错误提示，一切正常。
 
