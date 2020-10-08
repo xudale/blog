@@ -25,8 +25,8 @@ JSPromise 描述 Promise 的基本信息，[源码如下](https://chromium.googl
 
 ```C++
 bitfield struct JSPromiseFlags extends uint31 {
-  status: PromiseState: 2 bit;
-  has_handler: bool: 1 bit;
+  status: PromiseState: 2 bit; // Promise 的状态，kPending/kFulfilled/kRejected
+  has_handler: bool: 1 bit; // 是否有处理函数，没有调用过 then 方法的 Promise 没有处理函数
   handled_hint: bool: 1 bit;
   async_task_id: int32: 22 bit;
 }
@@ -57,12 +57,41 @@ extern class JSPromise extends JSObject {
 
   // Smi 0 terminated list of PromiseReaction objects in case the JSPromise was
   // not settled yet, otherwise the result.
+  // promise 的结果，通常是 resolve 函数的参数
   reactions_or_result: Zero|PromiseReaction|JSAny;
   flags: SmiTagged<JSPromiseFlags>;
 }
 ```
 
+当 Promise 状态改变时，SetStatus 方法会被调用；Javascript 层面调用 resolve 方法时，reactions_or_result 会赋值；Javascript 层面调用 then 方法时，SetHasHandler 会被调用。Status/SetStatus 这两个方法一个获取 Promise 状态，一个设置 Promise 状态，因为容易理解，所以不再举例；下面举一个 HasHandler/SetHasHandler 的例子。
+
+```JavaScript
+const myPromise1 = new Promise((resolve, reject) => {
+  reject()
+})
+````
+
+在 node-v14.13.0 环境下执行，结果如下：
+
+![mach_host_self](https://raw.githubusercontent.com/xudale/blog/master/assets/mach_host_self.png)
+
+大意是说处于 rejected 状态的 Promise 必须有处理函数。当把处理函数加上以后，代码如下：
+
+```JavaScript
+const myPromise1 = new Promise((resolve, reject) => {
+  reject()
+})
+
+myPromise1.then(console.log, console.log)
+````
+
+在 node-v14.13.0 环境下执行，没有错误提示，一切正常。
+
+
 ### 其它
+
+- executor：executor 是一个函数，是 Promise 构造函数接收的参数
+- PromiseReaction：存 Promise 处理函数，因为一个 Promise 多次调用 then 方法就会有多个处理函数，所以是个链表
 
 ## 构造函数
 
