@@ -95,6 +95,83 @@ myPromise1.then(console.log, console.log)
 
 ## 构造函数
 
+构造函数[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-constructor.tq#47)：
+
+```C++
+// https://tc39.es/ecma262/#sec-promise-executor
+transitioning javascript builtin
+PromiseConstructor(
+    js-implicit context: NativeContext, receiver: JSAny,
+    newTarget: JSAny)(executor: JSAny): JSAny {
+  // 1. If NewTarget is undefined, throw a TypeError exception.
+  if (newTarget == Undefined) {
+    ThrowTypeError(MessageTemplate::kNotAPromise, newTarget);
+  }
+
+  // 2. If IsCallable(executor) is false, throw a TypeError exception.
+  if (!Is<Callable>(executor)) {
+    ThrowTypeError(MessageTemplate::kResolverNotAFunction, executor);
+  }
+
+  let result: JSPromise;
+  // 构造一个 Promise 对象
+  result = NewJSPromise();
+  // 从 Promise 对象 result 身上，获取它的 resolve 和 reject 函数
+  const funcs = CreatePromiseResolvingFunctions(result, True, context);
+  const resolve = funcs.resolve;
+  const reject = funcs.reject;
+  try {
+    // 直接同步调用 executor 函数，resolve 和 reject 做为参数
+    Call(context, UnsafeCast<Callable>(executor), Undefined, resolve, reject);
+  } catch (e) {
+    Call(context, reject, Undefined, e);
+  }
+  return result;
+}
+```
+
+首先分析两个 ThrowTypeError，以下代码可触发第一个 ThrowTypeError。
+
+```JavaScript
+Promise()  // TypeError: undefined is not a promise
+```
+
+原因是没有使用 new 操作符直接调用 Promise 构造函数，此时 newTarget 等于 Undefined，触发了 ThrowTypeError(MessageTemplate::kNotAPromise, newTarget)。
+
+以下代码可触发第二个 ThrowTypeError。
+
+```JavaScript
+new Promise() // TypeError: Promise resolver undefined is not a function
+```
+
+此时 newTarget 不等于 Undefined。但调用 Promise 构造函数没传 executor，触发了第二个 ThrowTypeError。
+
+错误消息在 C++ 代码中定义，使用了宏和枚举巧妙的生成了 C++ 代码，这里不做展开，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/common/message-template.h#130)：
+
+```C++
+T(NotAPromise, "% is not a promise")                            \
+T(ResolverNotAFunction, "Promise resolver % is not a function") \
+```
+
+executor 是一个函数，在 JavaScript 的世界里，回调函数通常都是异步调用，但 executor 实际上是同步调用的。在 Call(context, UnsafeCast<Callable>(executor), Undefined, resolve, reject) 这一行，executor 没有任何进入 microtask 队列，同步调用。
+
+```JavaScript
+console.log('同步执行开始')
+new Promise((resolve, reject) => {
+  resolve()
+  console.log('executor 同步执行')
+})
+
+console.log('同步执行结束')
+// 本段代码的打印顺序是:
+// 同步执行开始
+// executor 同步执行
+// 同步执行结束
+```
+
+> 虽然并不符合直觉，Promise 构造函数接收的参数 executor，是同步执行的
+
+
 ## then
 
 ## resolve
