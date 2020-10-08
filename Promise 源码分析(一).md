@@ -1,15 +1,75 @@
-# Nodejs 如何获取 CPU 信息
+# Promise 源码分析(一)
 
-| 环境       |    版本 |
-| --------  | -------- |
-| Nodejs    | 12.16.1 |
-| V8        | 7.8.279.23-node.31 |
-| MacOS      | 10.13.5 |
-| MacBook Pro      | 13-inch, Early 2011 |
-| CPU      | 2.7 GHz Intel Core i7 |
-| Xcode      | 9.4.1 |
+node 版本 14.13.0，V8 版本 8.4.371。Promise 源码全部在 V8，所以 node 版本不重要。很早就想写 Promise 源码相关的文章，但 V8 中 Promise 的源码以前都是用 CodeStubAssembler 写的，根据过往经验，大多数前端看不懂 CodeStubAssembler 这种汇编风格的语言。直到两个月前无意中发现 V8 的新版本已经用 Torque 重写了 Promise 的大部分，遂有此文。
 
-Nodejs 获取 CPU 信息十分简单，加载 os 模块后，调用其 cpus 方法即可，代码如下：
+## 基本数据结构
+
+### 三种状态
+
+Promise 共有 3 种状态，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/base.tq#190)：
+
+```C++
+// Promise constants
+extern enum PromiseState extends int31 constexpr 'Promise::PromiseState' {
+  kPending,
+  kFulfilled,
+  kRejected
+}
+```
+
+一个新创建的 Promise 处于 pending 状态。当调用 resolve 或 reject 函数后，Promise 就会处于 fulfilled 或 rejected 状态，此后 Promise 的状态将不可改变，也就是说 Promise 的状态改变是不可逆的。
+
+### JSPromise
+
+JSPromise 描述 Promise 的基本信息，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/objects/js-promise.tq#13)：
+
+```C++
+bitfield struct JSPromiseFlags extends uint31 {
+  status: PromiseState: 2 bit;
+  has_handler: bool: 1 bit;
+  handled_hint: bool: 1 bit;
+  async_task_id: int32: 22 bit;
+}
+
+@generateCppClass
+extern class JSPromise extends JSObject {
+  macro Status(): PromiseState {
+    // 获取 Promise 的状态 kPending/kFulfilled/kRejected 中的一个
+    return this.flags.status;
+  }
+
+  macro SetStatus(status: constexpr PromiseState): void {
+    // 
+    assert(this.Status() == PromiseState::kPending);
+    assert(status != PromiseState::kPending);
+
+    this.flags.status = status;
+  }
+
+  macro HasHandler(): bool {
+    return this.flags.has_handler;
+  }
+
+  macro SetHasHandler(): void {
+    this.flags.has_handler = true;
+  }
+
+  // Smi 0 terminated list of PromiseReaction objects in case the JSPromise was
+  // not settled yet, otherwise the result.
+  reactions_or_result: Zero|PromiseReaction|JSAny;
+  flags: SmiTagged<JSPromiseFlags>;
+}
+```
+
+### 其它
+
+## 构造函数
+
+## then
+
+## resolve
+
+## 总结
 
 ```JavaScript
 const os = require('os');
