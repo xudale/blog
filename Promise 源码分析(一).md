@@ -228,7 +228,7 @@ PromisePrototypeThen(js-implicit context: NativeContext, receiver: JSAny)(
 }
 ```
 
-PromisePrototypeThen 函数创建了一个新的 Promise，获取 then 接收到的两个参数，调用 PerformPromiseThenImpl。这里有一点值得注意，then 方法返回的是一个新创建的 Promise。
+PromisePrototypeThen 函数创建了一个新的 Promise，获取 then 接收到的两个参数，调用 PerformPromiseThenImpl 完成大部分工作。这里有一点值得注意，then 方法返回的是一个新创建的 Promise。
 
 ```JavaScript
 const myPromise2 = new Promise((resolve, reject) => {
@@ -237,7 +237,7 @@ const myPromise2 = new Promise((resolve, reject) => {
 
 const myPromise3 = myPromise2.then(console.log)
 
-// myPromise2 和 myPromise3 是两个不同的对象，可以有不同的状态
+// myPromise2 和 myPromise3 是两个不同的对象，有不同的状态和不同的处理函数
 console.log(myPromise2 === myPromise3) // 打印 false
 ```
 
@@ -265,6 +265,9 @@ transitioning macro PerformPromiseThenImpl(implicit context: Context)(
     const reaction = NewPromiseReaction(
         handlerContext, promiseReactions, resultPromiseOrCapability,
         onFulfilled, onRejected);
+    // reactions_or_result 可以存 Promise 的处理函数，也可以存
+    // Promise 的最终结果，因为现在 Promise 处于 pending 状态，
+    // 所以存的是处理函数 reaction
     promise.reactions_or_result = reaction;
   } else {
     // fulfilled 和 rejected 状态的分支
@@ -287,18 +290,18 @@ transitioning macro PerformPromiseThenImpl(implicit context: Context)(
           runtime::PromiseRevokeReject(promise);
         }
       }
-    // 即使调用 then 方法时 promise 已经 fulfilled 或 rejected
-    // then 方法的 onFulfilled 或 onRejected 参数也不会立刻执行
-    // 而是进入 microtask 队列后执行
+    // 即使调用 then 方法时 promise 已经处于 fulfilled 或 rejected 状态，
+    // then 方法的 onFulfilled 或 onRejected 参数也不会立刻执行，而是进入
+    // microtask 队列后执行
     EnqueueMicrotask(handlerContext, microtask);
   }
   promise.SetHasHandler();
 }
 ```
 
-### PerformPromiseThenImpl penging 分支
+### PerformPromiseThenImpl 函数的 penging 分支
 
-PerformPromiseThenImpl 有两个分支，pending 分支调用 NewPromiseReaction 函数，在接收到的 onFulfilled 和 onRejected 参数的基础上，生成 PromiseReaction 对象，并赋值给 JSPromise 的 reactions_or_result 字段;
+PerformPromiseThenImpl 有两个分支，pending 分支调用 NewPromiseReaction 函数，在接收到的 onFulfilled 和 onRejected 参数的基础上，生成 PromiseReaction 对象，存储 Promise 的处理函数，并赋值给 JSPromise 的 reactions_or_result 字段;
 
 考虑一个 Promise 可以会连续调用多个 then 的情况，比如：
 
@@ -320,7 +323,7 @@ myPromise4.then(result => {
 
 myPromise4 调用了两次 then 方法，每个 then 方法都会生成一个 PromiseReaction 对象。第一次调用 then 方法时生成对象 PromiseReaction1，此时 myPromise4 的 reactions_or_result 存的是 PromiseReaction1。
 
-第二次调用 then 方法时生成对象 PromiseReaction2，调用 NewPromiseReaction 函数时，PromiseReaction2.next = PromiseReaction1，PromiseReaction1 变成了 PromiseReaction2 的下一个节点，最后 myPromise4 的 reactions_or_result 存的是 PromiseReaction2。NewPromiseReaction 函数[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-misc.tq#134)：
+第二次调用 then 方法时生成对象 PromiseReaction2，调用 NewPromiseReaction 函数时，PromiseReaction2.next = PromiseReaction1，PromiseReaction1 变成了 PromiseReaction2 的下一个节点，最后 myPromise4 的 reactions_or_result 存的是 PromiseReaction2。PromiseReaction2 后进入 Promise 处理函数的链表，却是链表的头结点。NewPromiseReaction 函数[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-misc.tq#134)：
 
 ```C++
 macro NewPromiseReaction(implicit context: Context)(
@@ -341,11 +344,11 @@ macro NewPromiseReaction(implicit context: Context)(
 }
 ```
 
-在 myPromise4 处于 pending 状态时，myPromise4 的 reactions_or_result 字段如下图： 
+在 myPromise4 处于 pending 状态时，myPromise4 的 reactions_or_result 字段示意如下图，下图不是 microtask 队列，下图不是 microtask 队列，下图不是 microtask 队列。
 
 ![reactionList](https://raw.githubusercontent.com/xudale/blog/master/assets/reactionList.png)
 
-### PerformPromiseThenImpl fulfilled/rejected 分支
+### PerformPromiseThenImpl 函数的 fulfilled/rejected 分支
 
 fulfilled/rejected 分支逻辑则简单的多，处理的是当 Promise 处于 fulfilled/rejected 状态时，调用 then 方法的逻辑，以 fulfilled 状态为例，调用 NewPromiseFulfillReactionJobTask 生成 microtask，然后 EnqueueMicrotask(handlerContext, microtask) 将刚才生成的 microtask 放入 microtask 队列。
 
@@ -357,12 +360,14 @@ new Promise((resolve, reject) => {
 })
 
 console.log('同步执行结束')
-// 打印顺序：同步执行结束、进入 microtask 队列后执行
+// 本段代码的打印顺序是:
+// 同步执行结束、
+// 进入 microtask 队列后执行
 ```
 
-尽管调用 then 方法时，Promise 已经处于 resolved 状态，但 then 方法的 fulfill 回调函数不会立刻执行，而是进入了 microtask 队列后执行。
+尽管调用 then 方法时，Promise 已经处于 resolved 状态，但 then 方法的 onFulfilled 回调函数不会立即执行，而是进入 microtask 队列后执行。
 
-> 对于一个已经 fulfilled 状态的 Promise，调用其 then 方法，then 方法接收的 fulfill 回调函数不会立即执行。而是进入 microtask 队列后执行。
+> 对于一个已经 fulfilled 状态的 Promise，调用其 then 方法时，then 方法接收的 onFulfilled 回调函数不会立即执行。而是进入 microtask 队列后执行。rejected 状态同理
 
 ## resolve
 
