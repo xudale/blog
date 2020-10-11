@@ -241,7 +241,7 @@ const myPromise3 = myPromise2.then(console.log)
 console.log(myPromise2 === myPromise3) // 打印 false
 ```
 
-PerformPromiseThenImpl (源码如下)[https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#409]：
+PerformPromiseThenImpl [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#409)：
 
 ```C++
 transitioning macro PerformPromiseThenImpl(implicit context: Context)(
@@ -339,7 +339,7 @@ macro NewPromiseReaction(implicit context: Context)(
 
 在 myPromise4 处于 pending 状态时，myPromise4 的 reactions_or_result 字段如下图：
 
-
+![reactionList](https://raw.githubusercontent.com/xudale/blog/master/assets/reactionList.png)
 
 
 ## resolve
