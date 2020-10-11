@@ -191,6 +191,7 @@ PromiseInit 函数初始化 JSPromise 的属性，与本文开头介绍的 JSPro
 
 ## then
 
+### PromisePrototypeThen
 JavaScript 层的 then 函数实际上是 V8 中的 PromisePrototypeThen 函数，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-then.tq#21)：
 
 ```C++
@@ -240,6 +241,8 @@ const myPromise3 = myPromise2.then(console.log)
 // myPromise2 和 myPromise3 是两个不同的对象，可以有不同的状态
 console.log(myPromise2 === myPromise3) // 打印 false
 ```
+
+### PerformPromiseThenImpl
 
 PerformPromiseThenImpl [源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#409)：
 
@@ -294,6 +297,8 @@ transitioning macro PerformPromiseThenImpl(implicit context: Context)(
 }
 ```
 
+### PerformPromiseThenImpl penging 分支
+
 PerformPromiseThenImpl 有两个分支，pending 分支调用 NewPromiseReaction 函数，在接收到的 onFulfilled 和 onRejected 参数的基础上，生成 PromiseReaction 对象，并赋值给 JSPromise 的 reactions_or_result 字段;
 
 考虑一个 Promise 可以会连续调用多个 then 的情况，比如：
@@ -337,10 +342,26 @@ macro NewPromiseReaction(implicit context: Context)(
 }
 ```
 
-在 myPromise4 处于 pending 状态时，myPromise4 的 reactions_or_result 字段如下图：
+在 myPromise4 处于 pending 状态时，myPromise4 的 reactions_or_result 字段如下图： 
 
 ![reactionList](https://raw.githubusercontent.com/xudale/blog/master/assets/reactionList.png)
 
+### PerformPromiseThenImpl fulfilled/rejected 分支
+
+fulfilled/rejected 分支逻辑则简单的多，处理的是当 Promise 处于 fulfilled/rejected 状态时，调用 then 方法的逻辑，以 fulfilled 状态为例，调用 NewPromiseFulfillReactionJobTask 生成 microtask，然后 EnqueueMicrotask(handlerContext, microtask) 将刚才生成的 microtask 放入 microtask 队列。
+
+```JavaScript
+new Promise((resolve, reject) => {
+  resolve()
+}).then(result => {
+  console.log('进入 microtask 队列后执行')
+})
+
+console.log('同步执行结束')
+// 打印顺序：同步执行结束、进入 microtask 队列后执行
+```
+
+尽管调用 then 方法时，Promise 已经处于 resolved 状态，但 then 方法的 fulfill 回调函数不会立刻执行，而是进入了 microtask 队列后执行。
 
 ## resolve
 
