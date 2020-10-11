@@ -464,34 +464,7 @@ myPromise5.then(result => {
 
 ## 总结与感想
 
-```JavaScript
-const os = require('os');
-const cpus = os.cpus()
-console.log(cpus)
-// 输出
-[
-  {
-    model: 'Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz',
-    speed: 2700,
-    times: { user: 987260, nice: 0, sys: 859740, idle: 2834280, irq: 0 }
-  },
-  {
-    model: 'Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz',
-    speed: 2700,
-    times: { user: 604020, nice: 0, sys: 288860, idle: 3624470, irq: 0 }
-  },
-  {
-    model: 'Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz',
-    speed: 2700,
-    times: { user: 977040, nice: 0, sys: 584940, idle: 2955370, irq: 0 }
-  },
-  {
-    model: 'Intel(R) Core(TM) i7-2620M CPU @ 2.70GHz',
-    speed: 2700,
-    times: { user: 600650, nice: 0, sys: 272840, idle: 3643860, irq: 0 }
-  }
-]
-```
+![promiseConclude](https://raw.githubusercontent.com/xudale/blog/master/assets/promiseConclude.png)
 
 
 
