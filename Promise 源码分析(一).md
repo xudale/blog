@@ -91,7 +91,7 @@ myPromise1.then(console.log, console.log)
 ### 其它
 
 - executor：executor 是一个函数，是 Promise 构造函数接收的参数
-- PromiseReaction：存 Promise 处理函数，因为一个 Promise 多次调用 then 方法就会有多个处理函数，所以是个链表
+- PromiseReaction：是对象，包装了 Promise 的处理函数，因为一个 Promise 多次调用 then 方法就会有多个处理函数，所以是个链表
 
 ## 构造函数
 
@@ -171,7 +171,7 @@ console.log('同步执行结束')
 
 > 虽然并不符合直觉，Promise 构造函数接收的参数 executor，是同步执行的
 
-Promise 构造函数调用 NewJSPromise 获取一个新的 JSPromise 对象。NewJSPromise 调用 [PromiseInit]() 来初始化一个 JSPromise 对象，源码如下：
+Promise 构造函数调用 NewJSPromise 获取一个新的 JSPromise 对象。NewJSPromise 调用 [PromiseInit](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-misc.tq#29) 来初始化一个 JSPromise 对象，源码如下：
 
 ```C++
 macro PromiseInit(promise: JSPromise): void {
@@ -190,6 +190,157 @@ PromiseInit 函数初始化 JSPromise 的属性，与本文开头介绍的 JSPro
 
 
 ## then
+
+JavaScript 层的 then 函数实际上是 V8 中的 PromisePrototypeThen 函数，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-then.tq#21)：
+
+```C++
+transitioning javascript builtin
+PromisePrototypeThen(js-implicit context: NativeContext, receiver: JSAny)(
+    onFulfilled: JSAny, onRejected: JSAny): JSAny {
+  // 1. Let promise be the this value.
+  // 2. If IsPromise(promise) is false, throw a TypeError exception.
+  const promise = Cast<JSPromise>(receiver) otherwise ThrowTypeError(
+      MessageTemplate::kIncompatibleMethodReceiver, 'Promise.prototype.then',
+      receiver);
+
+  // 3. Let C be ? SpeciesConstructor(promise, %Promise%).
+  const promiseFun = UnsafeCast<JSFunction>(
+      context[NativeContextSlot::PROMISE_FUNCTION_INDEX]);
+
+  // 4. Let resultCapability be ? NewPromiseCapability(C).
+  let resultPromiseOrCapability: JSPromise|PromiseCapability;
+  let resultPromise: JSAny;
+  label AllocateAndInit {
+    const resultJSPromise = NewJSPromise(promise);
+    resultPromiseOrCapability = resultJSPromise;
+    resultPromise = resultJSPromise;
+  }
+  // onFulfilled 和 onRejected 是 then 接收的两个参数
+  const onFulfilled = CastOrDefault<Callable>(onFulfilled, Undefined);
+  const onRejected = CastOrDefault<Callable>(onRejected, Undefined);
+
+  // 5. Return PerformPromiseThen(promise, onFulfilled, onRejected,
+  //    resultCapability).
+  PerformPromiseThenImpl(
+      promise, onFulfilled, onRejected, resultPromiseOrCapability);
+  // 返回一个新的 Promise
+  return resultPromise;
+}
+```
+
+PromisePrototypeThen 函数创建了一个新的 Promise，获取 then 接收到的两个参数，调用 PerformPromiseThenImpl。这里有一点值得注意，then 方法返回的是一个新创建的 Promise。
+
+```JavaScript
+const myPromise2 = new Promise((resolve, reject) => {
+  resolve('foo')
+})
+
+const myPromise3 = myPromise2.then(console.log)
+
+// myPromise2 和 myPromise3 是两个不同的对象，可以有不同的状态
+console.log(myPromise2 === myPromise3) // 打印 false
+```
+
+PerformPromiseThenImpl (源码如下)[https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#409]：
+
+```C++
+transitioning macro PerformPromiseThenImpl(implicit context: Context)(
+    promise: JSPromise, onFulfilled: Callable|Undefined,
+    onRejected: Callable|Undefined,
+    resultPromiseOrCapability: JSPromise|PromiseCapability|Undefined): void {
+  if (promise.Status() == PromiseState::kPending) {
+    // penging 状态的分支
+    // The {promise} is still in "Pending" state, so we just record a new
+    // PromiseReaction holding both the onFulfilled and onRejected callbacks.
+    // Once the {promise} is resolved we decide on the concrete handler to
+    // push onto the microtask queue.
+    const handlerContext = ExtractHandlerContext(onFulfilled, onRejected);
+    // 拿到 Promise 的 reactions_or_result 字段
+    const promiseReactions =
+        UnsafeCast<(Zero | PromiseReaction)>(promise.reactions_or_result);
+    // 考虑一个 Promise 可能会有多个 then 的情况，reaction 是个链表
+    // 存 Promise 的所有处理函数
+    const reaction = NewPromiseReaction(
+        handlerContext, promiseReactions, resultPromiseOrCapability,
+        onFulfilled, onRejected);
+    promise.reactions_or_result = reaction;
+  } else {
+    // fulfilled 和 rejected 状态的分支
+    const reactionsOrResult = promise.reactions_or_result;
+    let microtask: PromiseReactionJobTask;
+    let handlerContext: Context;
+    if (promise.Status() == PromiseState::kFulfilled) {
+      handlerContext = ExtractHandlerContext(onFulfilled, onRejected);
+      microtask = NewPromiseFulfillReactionJobTask(
+          handlerContext, reactionsOrResult, onFulfilled,
+          resultPromiseOrCapability);
+    } else
+      deferred {
+        assert(promise.Status() == PromiseState::kRejected);
+        handlerContext = ExtractHandlerContext(onRejected, onFulfilled);
+        microtask = NewPromiseRejectReactionJobTask(
+            handlerContext, reactionsOrResult, onRejected,
+            resultPromiseOrCapability);
+        if (!promise.HasHandler()) {
+          runtime::PromiseRevokeReject(promise);
+        }
+      }
+    // 即使调用 then 方法时 promise 已经 fulfilled 或 rejected
+    // then 方法的 onFulfilled 或 onRejected 参数也不会立刻执行
+    // 而是进入 microtask 队列后执行
+    EnqueueMicrotask(handlerContext, microtask);
+  }
+  promise.SetHasHandler();
+}
+```
+
+PerformPromiseThenImpl 有两个分支，pending 分支调用 NewPromiseReaction 函数，在接收到的 onFulfilled 和 onRejected 参数的基础上，生成 PromiseReaction 对象，并赋值给 JSPromise 的 reactions_or_result 字段;
+
+考虑一个 Promise 可以会连续调用多个 then 的情况，比如：
+
+```JavaScript
+const myPromise4 = new Promise((resolve, reject) => {
+  setTimeout(_ => {
+    resolve('my code delay 5000') 
+  }, 5e3)
+})
+
+myPromise4.then(result => {
+  console.log('第 1 个 then')
+})
+
+myPromise4.then(result => {
+  console.log('第 2 个 then')
+})
+```
+
+myPromise4 调用了两次 then 方法，每个 then 方法都会生成一个 PromiseReaction 对象。第一次调用 then 方法时生成对象 PromiseReaction1，此时 myPromise4 的 reactions_or_result 存的是 PromiseReaction1。
+
+第二次调用 then 方法时生成对象 PromiseReaction2，调用 NewPromiseReaction 函数时，PromiseReaction2.next = PromiseReaction1，PromiseReaction1 变成了 PromiseReaction2 的下一个节点，最后 myPromise4 的 reactions_or_result 存的是 PromiseReaction2。NewPromiseReaction 函数[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-misc.tq#134)：
+
+```C++
+macro NewPromiseReaction(implicit context: Context)(
+    handlerContext: Context, next: Zero|PromiseReaction,
+    promiseOrCapability: JSPromise|PromiseCapability|Undefined,
+    fulfillHandler: Callable|Undefined,
+    rejectHandler: Callable|Undefined): PromiseReaction {
+  const nativeContext = LoadNativeContext(handlerContext);
+  return new PromiseReaction{
+    map: PromiseReactionMapConstant(),
+    next: next, // next 字段存的是链表中的下一个节点
+    reject_handler: rejectHandler,
+    fulfill_handler: fulfillHandler,
+    promise_or_capability: promiseOrCapability,
+    continuation_preserved_embedder_data: nativeContext
+        [NativeContextSlot::CONTINUATION_PRESERVED_EMBEDDER_DATA_INDEX]
+  };
+}
+```
+
+在 myPromise4 处于 pending 状态时，myPromise4 的 reactions_or_result 字段如下图：
+
+
+
 
 ## resolve
 
@@ -229,36 +380,6 @@ console.log(cpus)
 ## JS
 cpus 方法的源码位于 lib/os.js，粘贴如下：
 
-```JavaScript
-const {
-  getCPUs
-} = internalBinding('os');
-
-function cpus() {
-  // [] is a bugfix for a regression introduced in 51cea61
-  const data = getCPUs() || [];
-  const result = [];
-  let i = 0;
-  while (i < data.length) {
-    result.push({
-      model: data[i++],
-      speed: data[i++],
-      times: {
-        user: data[i++],
-        nice: data[i++],
-        sys: data[i++],
-        idle: data[i++],
-        irq: data[i++]
-      }
-    });
-  }
-  return result;
-}
-
-module.exports = {
-  cpus
-};
-```
 
 cpus 通过调用 getCPUs 得到 data 数组，data 数组里面存储的是 CPU 相关的信息，data 数组的长度就是 CPU 的核心数。JS 层的 cpus 只是简单包装了一下 C++ 层的 getCPUs。
 ## C++
