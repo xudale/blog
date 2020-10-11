@@ -368,10 +368,11 @@ console.log('同步执行结束')
 尽管调用 then 方法时，Promise 已经处于 resolved 状态，但 then 方法的 onFulfilled 回调函数不会立即执行，而是进入 microtask 队列后执行。
 
 > 对于一个已经 fulfilled 状态的 Promise，调用其 then 方法时，then 方法接收的 onFulfilled 回调函数不会立即执行。而是进入 microtask 队列后执行。rejected 状态同理
+> then 方法做的事情简单说就是依赖收集，当 Promise 变成 fulfilled/rejected 状态时，会触发之前收集到的依赖
 
 ## resolve
 
-当调用 resolve 函数时，归要到底调用了 V8 的 FulfillPromise 函数，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#182)：
+resolve 函数归根到底调用了 V8 的 FulfillPromise 函数，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#182)：
 
 ```C++
 // https://tc39.es/ecma262/#sec-fulfillpromise
@@ -382,25 +383,24 @@ FulfillPromise(implicit context: Context)(
   // promise 的状态改变是不可逆的
   assert(promise.Status() == PromiseState::kPending);
 
-  // 2. Let reactions be promise.[[PromiseFulfillReactions]].
+  // 取 Promise 的处理函数
   const reactions =
       UnsafeCast<(Zero | PromiseReaction)>(promise.reactions_or_result);
 
-  // 3. Set promise.[[PromiseResult]] to value.
-  // 4. Set promise.[[PromiseFulfillReactions]] to undefined.
-  // 5. Set promise.[[PromiseRejectReactions]] to undefined.
+  // Promise 已处于 fulfilled 状态，reactions_or_result 存储的不再是
+  // 处理函数，而是 Promise 的结果
   promise.reactions_or_result = value;
 
-  // 6. Set promise.[[PromiseState]] to "fulfilled".
+  // 设置 Promise 的状态为 fulfilled
   promise.SetStatus(PromiseState::kFulfilled);
 
-  // 7. Return TriggerPromiseReactions(reactions, value).
+  // Promise 的处理函数，Promise 的结果都拿到了，开始正式处理
   TriggerPromiseReactions(reactions, value, kPromiseReactionFulfill);
   return Undefined;
 }
 ```
 
-获取 Promise 的处理函数到 reactions，reactions 的类型是 PromiseReaction，是个链表，上节有讲过；设置 promise 的 reactions_or_result 为 value，这个 value 就是 JavaScript 层传给 resolve 的参数，调用 promise.SetStatus 设置 promise 的状态为 PromiseState::kFulfilled，最后调用 TriggerPromiseReactions。[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#140)：
+获取 Promise 的处理函数到 reactions，reactions 的类型是 PromiseReaction，是个链表，忘记的同学可以回看上节的那张链表图片；设置 promise 的 reactions_or_result 为 value，这个 value 就是 JavaScript 层传给 resolve 的参数，调用 promise.SetStatus 设置 promise 的状态为 PromiseState::kFulfilled，最后调用 TriggerPromiseReactions。[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#140)：
 
 ```C++
 // https://tc39.es/ecma262/#sec-triggerpromisereactions
@@ -444,31 +444,36 @@ transitioning macro TriggerPromiseReactions(implicit context: Context)(
 
 TriggerPromiseReactions 做了两件事：
 
-- 反转 reactions 链表，前文有分析过 then 方法的实现，then 方法的参数最存在链表中，并且最后被调用的 then 方法，它接收的参数会位于链表的头部，这不符合规范，所以需要反转
+- 反转 reactions 链表，前文有分析过 then 方法的实现，then 方法的参数最终存在链表中。最后被调用的 then 方法，它接收的参数被包装后会位于链表的头部，这不符合规范，所以需要反转
 - 遍历 reactions 对象，将每个元素放入 microtask 队列
 
 ```JavaScript
-const myPromise5 = new Promise((resolve, reject) => {
+const myPromise4 = new Promise((resolve, reject) => {
   setTimeout(_ => {
     resolve('my code delay 5000') 
   }, 5e3)
 })
 
-myPromise5.then(result => {
+myPromise4.then(result => {
   console.log('第 1 个 then')
 })
 
-myPromise5.then(result => {
+myPromise4.then(result => {
   console.log('第 2 个 then')
 })
-// 打印顺序：第 1 个 then、第 2 个 then
+// 打印顺序：
+// 第 1 个 then
+// 第 2 个 then
+// 如果把 TriggerPromiseReactions 中链表反转的代码注释掉，打印顺序为
+// 第 2 个 then
+// 第 1 个 then
 ```
 
-笔者把 TriggerPromiseReactions 中链表反转的代码注释掉，上面代码的打印顺序则变成了第 2 个 then、第 1 个 then。
+> resolve 的主要工作是遍历上节调用 then 方法时收集到的依赖，放入 microtask 队列中
 
 ## 总结与感想
 
-曾经觉得 Promise 很神秘，看了源码觉得 Promise 的本质其实还是回调函数，只不过靠着 Promise 的一系列方法和思想，改变了回调函数的出现的位置。then 方法一路看下来，做的是依赖收集的工作。resolve 将 then 方法收集到的依赖，放入 microtask 队列中。
+曾经觉得 Promise 很神秘，看了源码觉得 Promise 的本质其实还是回调函数，只不过背靠 Promise 的一系列方法和思想，改变了书写回调函数的方式。then 方法做依赖收集。resolve 收集到的依赖，放入 microtask 队列中。Promise 属于微创新，async/await 抛弃回调函数式的写法，暂停/恢复当前代码的执行，是革命性的创新。
 
 ![promiseConclude](https://raw.githubusercontent.com/xudale/blog/master/assets/promiseConclude.png)
 
