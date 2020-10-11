@@ -1,6 +1,6 @@
 # Promise 源码分析(一)
 
-node 版本 14.13.0，V8 版本 8.4.371。Promise 源码全部在 V8，所以 node 版本不重要。很早就想写 Promise 源码相关的文章，但 V8 中 Promise 的源码以前都是用 CodeStubAssembler 写的，根据过往经验，大多数前端看不懂 CodeStubAssembler 这种汇编风格的语言。直到两个月前无意中发现 V8 的新版本已经用 Torque 重写了 Promise 的大部分，遂有此文。
+本文基于 node 版本 14.13.0，V8 版本 8.4.371。Promise 源码全部在 V8，node 版本不重要。很早就想写 Promise 源码相关的文章，由于 V8 中 Promise 的源码之前（18、19年）是用 CodeStubAssembler 写的，很多前端看不懂 CodeStubAssembler 这种汇编风格的语言，考虑现实选择放弃。直到两个月前无意中发现 V8 的新版本已经用 Torque 重写了 Promise 的大部分代码，遂有此文。预计写 2-3 篇文章，本文介绍的内容是 Promise 构造函数、then 和 resolve。
 
 ## 基本数据结构
 
@@ -17,7 +17,7 @@ extern enum PromiseState extends int31 constexpr 'Promise::PromiseState' {
 }
 ```
 
-一个新创建的 Promise 处于 pending 状态。当调用 resolve 或 reject 函数后，Promise 就会处于 fulfilled 或 rejected 状态，此后 Promise 的状态将不可改变，也就是说 Promise 的状态改变是不可逆的。
+一个新创建的 Promise 处于 pending 状态。当调用 resolve 或 reject 函数后，Promise 处于 fulfilled 或 rejected 状态，此后 Promise 的状态保持不变，也就是说 Promise 的状态改变是不可逆的，Promise 源码中出现了多处状态相关 assert。
 
 ### JSPromise
 
@@ -34,7 +34,7 @@ bitfield struct JSPromiseFlags extends uint31 {
 @generateCppClass
 extern class JSPromise extends JSObject {
   macro Status(): PromiseState {
-    // 获取 Promise 的状态 kPending/kFulfilled/kRejected 中的一个
+    // 获取 Promise 的状态，返回 kPending/kFulfilled/kRejected 中的一个
     return this.flags.status;
   }
 
@@ -57,13 +57,13 @@ extern class JSPromise extends JSObject {
 
   // Smi 0 terminated list of PromiseReaction objects in case the JSPromise was
   // not settled yet, otherwise the result.
-  // promise 的结果，通常是 resolve 函数的参数
+  // promise 处理函数或结果，可以是无/包装了 onFulfilled/onRejected 回调函数的对象/resolve 接收的参数
   reactions_or_result: Zero|PromiseReaction|JSAny;
   flags: SmiTagged<JSPromiseFlags>;
 }
 ```
 
-当 Promise 状态改变时，SetStatus 方法会被调用；Javascript 层面调用 resolve 方法时，reactions_or_result 会赋值；Javascript 层面调用 then 方法时，SetHasHandler 会被调用。Status/SetStatus 这两个方法一个获取 Promise 状态，一个设置 Promise 状态，因为容易理解，所以不再举例；下面举一个 HasHandler/SetHasHandler 的例子。
+当 Promise 状态改变时，比如调用了 resolve/reject 函数，SetStatus 方法会被调用；Javascript 层调用 resolve 方法时，reactions_or_result 字段会被赋值；Javascript 层调用 then 方法时，说明已经有了处理函数，SetHasHandler 会被调用。Status/SetStatus 这两个方法一个获取 Promise 状态，一个设置 Promise 状态，因为容易理解，所以不再举例；下面举一个 HasHandler/SetHasHandler 的例子。
 
 ```JavaScript
 const myPromise1 = new Promise((resolve, reject) => {
@@ -75,7 +75,7 @@ const myPromise1 = new Promise((resolve, reject) => {
 
 ![unhandleReject](https://raw.githubusercontent.com/xudale/blog/master/assets/unhandleReject.png)
 
-大意是说处于 rejected 状态的 Promise 必须有处理函数。当把处理函数加上以后，代码如下：
+大意是说处于 rejected 状态的 Promise 必须要有处理函数。V8 通过 HasHandler 判断 myPromise1 并没有处理函数。当把处理函数加上以后，代码如下：
 
 ```JavaScript
 const myPromise1 = new Promise((resolve, reject) => {
@@ -85,13 +85,12 @@ const myPromise1 = new Promise((resolve, reject) => {
 myPromise1.then(console.log, console.log)
 ```
 
-在 node-v14.13.0 环境下执行，没有错误提示，一切正常。
-
+此时 SetHasHandler 已被调用，HasHandler 返回 true 表示 myPromise1 有处理函数。在 node-v14.13.0 环境下执行，没有错误提示，一切正常。
 
 ### 其它
 
-- executor：executor 是一个函数，是 Promise 构造函数接收的参数
-- PromiseReaction：是对象，包装了 Promise 的处理函数，因为一个 Promise 多次调用 then 方法就会有多个处理函数，所以是个链表
+- executor：是函数，是 Promise 构造函数接收的参数
+- PromiseReaction：是对象，表示 Promise 的处理函数，因为一个 Promise 多次调用 then 方法就会有多个处理函数，所以底层数据结构是个链表。
 
 ## 构造函数
 
@@ -133,18 +132,18 @@ PromiseConstructor(
 首先分析两个 ThrowTypeError，以下代码可触发第一个 ThrowTypeError。
 
 ```JavaScript
-Promise()  // TypeError: undefined is not a promise
+Promise()  // Uncaught TypeError: undefined is not a promise
 ```
 
-原因是没有使用 new 操作符直接调用 Promise 构造函数，此时 newTarget 等于 Undefined，触发了 ThrowTypeError(MessageTemplate::kNotAPromise, newTarget)。
+原因是没有使用 new 操作符调用 Promise 构造函数，此时 newTarget 等于 Undefined，触发了 ThrowTypeError(MessageTemplate::kNotAPromise, newTarget)。
 
 以下代码可触发第二个 ThrowTypeError。
 
 ```JavaScript
-new Promise() // TypeError: Promise resolver undefined is not a function
+new Promise() // Uncaught TypeError: Promise resolver undefined is not a function
 ```
 
-此时 newTarget 不等于 Undefined。但调用 Promise 构造函数没传 executor，触发了第二个 ThrowTypeError。
+此时 newTarget 不等于 Undefined，不会触发第一个 ThrowTypeError。但调用 Promise 构造函数时没传参数 executor，触发了第二个 ThrowTypeError。
 
 错误消息在 C++ 代码中定义，使用了宏和枚举巧妙的生成了 C++ 代码，这里不做展开，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/common/message-template.h#130)：
 
@@ -153,7 +152,7 @@ T(NotAPromise, "% is not a promise")                            \
 T(ResolverNotAFunction, "Promise resolver % is not a function") \
 ```
 
-executor 是一个函数，在 JavaScript 的世界里，回调函数通常都是异步调用，但 executor 实际上是同步调用的。在 Call(context, UnsafeCast<Callable>(executor), Undefined, resolve, reject) 这一行，executor 没有任何进入 microtask 队列，同步调用。
+executor 的类型是函数，在 JavaScript 的世界里，回调函数通常是异步调用，但 executor 是同步调用。在 Call(context, UnsafeCast<Callable>(executor), Undefined, resolve, reject) 这一行，同步调用了 executor。
 
 ```JavaScript
 console.log('同步执行开始')
@@ -169,7 +168,7 @@ console.log('同步执行结束')
 // 同步执行结束
 ```
 
-> 虽然并不符合直觉，Promise 构造函数接收的参数 executor，是同步执行的
+> Promise 构造函数接收的参数 executor，是被同步调用的
 
 Promise 构造函数调用 NewJSPromise 获取一个新的 JSPromise 对象。NewJSPromise 调用 [PromiseInit](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-misc.tq#29) 来初始化一个 JSPromise 对象，源码如下：
 
@@ -186,7 +185,7 @@ macro PromiseInit(promise: JSPromise): void {
 }
 ```
 
-PromiseInit 函数初始化 JSPromise 的属性，与本文开头介绍的 JSPromise 对象可以互相印证。
+PromiseInit 函数初始化 JSPromise 对象，相关字段可与本文开头介绍的 JSPromise 对象互相印证。
 
 
 ## then
