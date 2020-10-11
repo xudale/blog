@@ -464,6 +464,8 @@ myPromise5.then(result => {
 
 ## 总结与感想
 
+曾经觉得 Promise 很神秘，看了源码觉得 Promise 的本质其实还是回调函数，只不过靠着 Promise 的一系列方法和思想，改变了回调函数的出现的位置。then 方法一路看下来，做的是依赖收集的工作。resolve 将 then 方法收集到的依赖，放入 microtask 队列中。
+
 ![promiseConclude](https://raw.githubusercontent.com/xudale/blog/master/assets/promiseConclude.png)
 
 
