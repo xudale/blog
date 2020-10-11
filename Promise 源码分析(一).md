@@ -171,6 +171,23 @@ console.log('同步执行结束')
 
 > 虽然并不符合直觉，Promise 构造函数接收的参数 executor，是同步执行的
 
+Promise 构造函数调用 NewJSPromise 获取一个新的 JSPromise 对象。NewJSPromise 调用 [PromiseInit]() 来初始化一个 JSPromise 对象，源码如下：
+
+```C++
+macro PromiseInit(promise: JSPromise): void {
+  promise.reactions_or_result = kZero;
+  promise.flags = SmiTag(JSPromiseFlags{
+    status: PromiseState::kPending,
+    has_handler: false,
+    handled_hint: false,
+    async_task_id: 0
+  });
+  promise_internal::ZeroOutEmbedderOffsets(promise);
+}
+```
+
+PromiseInit 函数初始化 JSPromise 的属性，与本文开头介绍的 JSPromise 对象可以互相印证。
+
 
 ## then
 
