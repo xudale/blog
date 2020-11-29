@@ -42,14 +42,15 @@ transitioning macro TriggerPromiseReactions(implicit context: Context)(
   // 删减了链表反转的代码
   let current = reactions;
   // reactions 是一个链表，下面的 while 循环遍历链表
-  // 调用 MorphAndEnqueuePromiseReaction，把链接中的每一项都进入 microtask 队列
   while (true) {
     typeswitch (current) {
       case (Zero): {
         break;
       }
       case (currentReaction: PromiseReaction): {
-        current = currentReaction.next;
+        // 取出链表下一个结点
+        current = currentReaction.next; 
+        // 调用 MorphAndEnqueuePromiseReaction，把链接中的每一项都进入 microtask 队列
         MorphAndEnqueuePromiseReaction(currentReaction, argument, reactionType);
       }
     }
@@ -57,7 +58,7 @@ transitioning macro TriggerPromiseReactions(implicit context: Context)(
 }
 ```
 
-[MorphAndEnqueuePromiseReaction](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#84) 将 PromiseReaction 转为 microtask，最终放入 microtask 队列，morph 本身有转变转化的意思，比如多态的英文是 Polymorphism。MorphAndEnqueuePromiseReaction 源码如下，接收 3 个参数，PromiseReaction 就是前面提到的包装了 Promise 处理函数的对象，argument 依 Promise 最后的状态，可能是 Promise 的 value/reason，reactionType 表示 Promise 最终的状态，fulfilled 状态对应的值是 kPromiseReactionFulfill，rejected 状态对应的值是 kPromiseReactionReject。MorphAndEnqueuePromiseReaction 的逻辑很简单，因为此时已经知道了 Promise 的最终状态，所以可以从 promiseReaction 对象得到 promiseReactionJobTask 对象，promiseReactionJobTask 的变量命名与 ECMA 规范相关描述一脉相承，其实就是 microtask。MorphAndEnqueuePromiseReaction 源码如下，仅保留了和本小节相关的内容。
+[MorphAndEnqueuePromiseReaction](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#84) 将 PromiseReaction 转为 microtask，最终放入 microtask 队列，morph 本身有转变/转化的意思，比如多态的英文是 Polymorphism。MorphAndEnqueuePromiseReaction 接收 3 个参数，PromiseReaction 就是前面提到的包装了 Promise 处理函数的对象，argument 与 Promise 最后的状态，可能是 Promise 的 value/reason，reactionType 表示 Promise 最终的状态，fulfilled 状态对应的值是 kPromiseReactionFulfill，rejected 状态对应的值是 kPromiseReactionReject。MorphAndEnqueuePromiseReaction 的逻辑很简单，因为此时已经知道了 Promise 的最终状态，所以可以从 promiseReaction 对象得到 promiseReactionJobTask 对象，promiseReactionJobTask 的变量命名与 ECMA 规范相关描述一脉相承，其实就是 microtask。MorphAndEnqueuePromiseReaction 源码如下，仅保留了和本小节相关的内容。
 
 ```C++
 transitioning macro MorphAndEnqueuePromiseReaction(implicit context: Context)(
@@ -97,10 +98,10 @@ transitioning macro MorphAndEnqueuePromiseReaction(implicit context: Context)(
 }
 ```
 
-reject 和 resolve 的逻辑差不多：
+reject 和 resolve 的逻辑基本相同，分 3 步：
 - 设置 Promise 的 value/reason，也就是 resolve/reject 的参数
 - 设置 Promise 的状态：fulfilled/rejected
-- 从之前调用 then 方法时收集到的依赖，也就是 promiseReaction 对象，得到 microtask，插入 microtask 队列  
+- 从之前调用 then 方法时收集到的依赖，也就是 promiseReaction 对象，得到 microtask，最后将 microtask 插入 microtask 队列
 ## catch
 ## then 的链式调用
 
