@@ -103,6 +103,53 @@ reject 和 resolve 的逻辑基本相同，分 3 步：
 - 设置 Promise 的状态：fulfilled/rejected
 - 从之前调用 then 方法时收集到的依赖，也就是 promiseReaction 对象，得到 microtask，最后将 microtask 插入 microtask 队列
 ## catch
+
+```JavaScript
+new Promise((resolve, reject) => {
+    setTimeout(reject, 2000)
+}).catch(_ => {
+    console.log('rejected')
+})
+```
+
+当 catch 方法执行时，调用了 V8 的 [PromisePrototypeCatch](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-constructor.tq#100) 方法，源码如下：
+
+```C++
+transitioning javascript builtin
+PromisePrototypeCatch(
+    js-implicit context: Context, receiver: JSAny)(onRejected: JSAny): JSAny {
+  const nativeContext = LoadNativeContext(context);
+  return UnsafeCast<JSAny>(
+      InvokeThen(nativeContext, receiver, Undefined, onRejected));
+}
+```
+
+PromisePrototypeCatch 的源码确实就这几行，调用 InvokeThen 方法，从名字可能推测出，InvokeThen 调用的就是 then 方法，InvokeThen(https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-misc.tq#199) 源码如下：
+
+```C++
+transitioning
+macro InvokeThen<F: type>(implicit context: Context)(
+    nativeContext: NativeContext, receiver: JSAny, arg1: JSAny, arg2: JSAny,
+    callFunctor: F): JSAny {
+  if (!Is<Smi>(receiver) &&
+      IsPromiseThenLookupChainIntact(
+          nativeContext, UnsafeCast<HeapObject>(receiver).map)) {
+    const then =
+        UnsafeCast<JSAny>(nativeContext[NativeContextSlot::PROMISE_THEN_INDEX]);
+    return callFunctor.Call(nativeContext, then, receiver, arg1, arg2);
+  } else
+    deferred {
+      const then = UnsafeCast<JSAny>(GetProperty(receiver, kThenString));
+      return callFunctor.Call(nativeContext, then, receiver, arg1, arg2);
+    }
+}
+```
+
+InvokeThen 方法有 if/else 两个分支，两个分支的逻辑差不多，本文代码是 if 分支。先是拿到 V8 原生的 then 方法，然后通过 callFunctor.Call(nativeContext, then, receiver, arg1, arg2) 调用 then 方法。then 方法上一篇文章分享过，这里不再赘述。
+
+> catch 方法底层调用的是 then 方法
+> JS 层面 obj.catch(onRejected) 等价于 obj.then(undefined, onRejected)
+
 ## then 的链式调用
 
 ## 基本数据结构
