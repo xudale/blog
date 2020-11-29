@@ -57,7 +57,7 @@ transitioning macro TriggerPromiseReactions(implicit context: Context)(
 }
 ```
 
-[MorphAndEnqueuePromiseReaction](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#84) 将 PromiseReaction 转为 microtask，最终放入 microtask 队列，morph 本身有转变转化的意思，比如多态的英文是 Polymorphism。MorphAndEnqueuePromiseReaction 源码如下：
+[MorphAndEnqueuePromiseReaction](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-abstract-operations.tq#84) 将 PromiseReaction 转为 microtask，最终放入 microtask 队列，morph 本身有转变转化的意思，比如多态的英文是 Polymorphism。MorphAndEnqueuePromiseReaction 源码如下，接收 3 个参数，PromiseReaction 就是前面提到的包装了 Promise 处理函数的对象，argument 依 Promise 最后的状态，可能是 Promise 的 value/reason，reactionType 表示 Promise 最终的状态，fulfilled 状态对应的值是 kPromiseReactionFulfill，rejected 状态对应的值是 kPromiseReactionReject。MorphAndEnqueuePromiseReaction 的逻辑很简单，因为此时已经知道了 Promise 的最终状态，所以可以从 promiseReaction 对象得到 promiseReactionJobTask 对象，promiseReactionJobTask 的变量命名与 ECMA 规范相关描述一脉相承，其实就是 microtask。MorphAndEnqueuePromiseReaction 源码如下，仅保留了和本小节相关的内容。
 
 ```C++
 transitioning macro MorphAndEnqueuePromiseReaction(implicit context: Context)(
@@ -82,10 +82,13 @@ transitioning macro MorphAndEnqueuePromiseReaction(implicit context: Context)(
         PromiseRejectReactionJobTaskMapConstant();
     const promiseReactionJobTask =
         UnsafeCast<PromiseRejectReactionJobTask>(promiseReaction);
+    // argument 是 reject 的参数
     promiseReactionJobTask.argument = argument;
     promiseReactionJobTask.context = handlerContext;
+    // handler 是 JS 层面 then 方法的第二个参数，或 catch 方法的参数
     promiseReactionJobTask.handler = primaryHandler;
     // promiseReactionJobTask 就是那个工作中经常被反复提起的 microtask
+    // EnqueueMicrotask 将 microtask 插入 microtask 队列
     EnqueueMicrotask(handlerContext, promiseReactionJobTask);
     StaticAssert(
         kPromiseReactionPromiseOrCapabilityOffset ==
@@ -93,6 +96,11 @@ transitioning macro MorphAndEnqueuePromiseReaction(implicit context: Context)(
   }
 }
 ```
+
+reject 和 resolve 的逻辑差不多：
+- 设置 Promise 的 value/reason，也就是 resolve/reject 的参数
+- 设置 Promise 的状态：fulfilled/rejected
+- 从之前调用 then 方法时收集到的依赖，也就是 promiseReaction 对象，得到 microtask，插入 microtask 队列  
 ## catch
 ## then 的链式调用
 

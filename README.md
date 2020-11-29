@@ -18,3 +18,5 @@
 [Nodejs 如何获取 CPU 信息](https://github.com/xudale/blog/blob/master/Nodejs%20%E5%A6%82%E4%BD%95%E8%8E%B7%E5%8F%96%20CPU%20%E4%BF%A1%E6%81%AF.md "Nodejs 如何获取 CPU 信息")
 
 [Promise 源码分析(一)](https://github.com/xudale/blog/blob/master/Promise%20%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90(%E4%B8%80).md "Promise 源码分析(一)")
+
+[Promise 源码分析(二)](https://github.com/xudale/blog/blob/master/Promise%20%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90(%E4%BA%8C).md)
