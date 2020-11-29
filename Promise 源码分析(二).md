@@ -124,7 +124,7 @@ PromisePrototypeCatch(
 }
 ```
 
-PromisePrototypeCatch 的源码确实就这几行，调用 InvokeThen 方法，从名字可能推测出，InvokeThen 调用的就是 then 方法，InvokeThen(https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-misc.tq#199) 源码如下：
+PromisePrototypeCatch 的源码确实就这几行，调用了 InvokeThen 方法。从名字可以推测出，InvokeThen 调用的就是 then 方法，[InvokeThen](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-misc.tq#199) 源码如下：
 
 ```C++
 transitioning
@@ -145,10 +145,26 @@ macro InvokeThen<F: type>(implicit context: Context)(
 }
 ```
 
-InvokeThen 方法有 if/else 两个分支，两个分支的逻辑差不多，本文代码是 if 分支。先是拿到 V8 原生的 then 方法，然后通过 callFunctor.Call(nativeContext, then, receiver, arg1, arg2) 调用 then 方法。then 方法上一篇文章分享过，这里不再赘述。
+InvokeThen 方法有 if/else 两个分支，两个分支的逻辑差不多，本文的 JS 示例代码走的是 if 分支。先是拿到 V8 原生的 then 方法，然后通过 callFunctor.Call(nativeContext, then, receiver, arg1, arg2) 调用 then 方法。then 方法上一篇文章分享过，这里不再赘述。
+
+既然 catch 方法底层调用了 then 方法，那么 catch 方法也有和 then 方法一样的返回值。catch 方法可以继续抛出异常，可以继续链式调用。
+
+```JavaScript
+new Promise((resolve, reject) => {
+    setTimeout(reject, 2000)
+}).catch(_ => {
+    throw 'rejected'
+}).catch(_ => {
+    console.log('last catch')
+})
+```
+
+上面的代码第 2 个 catch 处理第 1 个 catch 抛出的异常，最后打印 last catch。
 
 > catch 方法底层调用的是 then 方法
+> 
 > JS 层面 obj.catch(onRejected) 等价于 obj.then(undefined, onRejected)
+
 
 ## then 的链式调用
 
