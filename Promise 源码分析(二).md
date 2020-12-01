@@ -165,8 +165,43 @@ new Promise((resolve, reject) => {
 > 
 > JS 层面 obj.catch(onRejected) 等价于 obj.then(undefined, onRejected)
 
+## then 的链式调用与 microtask 队列
 
-## then 的链式调用
+```JavaScript
+Promise.resolve('123')
+    .then(() => {throw new Error('456')})
+    .then(_ => {
+        console.log('shouldnot be here')
+    })
+    .catch((e) => console.log(e))
+    .then((data) => console.log(data));
+```
+
+以上代码运行后，打印 Error: 456 和 undefined。为了便于叙述，将 then 的链式调用写法改为啰嗦写法。
+
+```JavaScript
+const p0 = Promise.resolve('123')
+const p1 = p0.then(() => {throw new Error('456')})
+const p2 = p1.then(_ => {
+    console.log('shouldnot be here')
+})
+const p3 = p2.catch((e) => console.log(e))
+const p4 = p3.then((data) => console.log(data));
+```
+
+then 方法返回新的 Promise，所以 p0、p1、p2、p3 和 p4 这 5 个 Promise 互不相等。
+
+p0 开始便处于 fulfilled 状态，当执行
+
+```JavaScript
+const p1 = p0.then(() => {throw new Error('456')})
+```
+
+时，由于 p0 已是 fulfilled 状态，直接将 p0 的 fulfilled 处理函数插入 microtask 队列，此时 microtask 简略示意图如下：
+
+
+
+p1 最终是 rejected 状态，但 p1 只有 fulfilled 状态的处理函数，没有 rejected 状态的处理函数
 
 ## 基本数据结构
 
