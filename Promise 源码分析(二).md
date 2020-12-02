@@ -197,8 +197,26 @@ p0 开始便处于 fulfilled 状态，当执行
 const p1 = p0.then(() => {throw new Error('456')})
 ```
 
-时，由于 p0 已是 fulfilled 状态，直接将 p0 的 fulfilled 处理函数插入 microtask 队列，此时 microtask 简略示意图如下：
+时，由于 p0 已是 fulfilled 状态，直接将 p0 的 fulfilled 处理函数插入 microtask 队列，此时 microtask 队列简略示意图如下：
 
+![promise1](https://raw.githubusercontent.com/xudale/blog/master/assets/p1.png)
+
+然后跑完余下所有的 then/catch 方法。
+
+```JavaScript
+const p1 = p0.then(() => {throw new Error('456')})
+const p2 = p1.then(_ => {
+    console.log('shouldnot be here')
+})
+const p3 = p2.catch((e) => console.log(e))
+const p4 = p3.then((data) => console.log(data));
+```
+
+p1、p2、p3 和 p4 这 4 个 Promise 都处于 pending 状态，microtask 队列还是
+
+![promise1](https://raw.githubusercontent.com/xudale/blog/master/assets/p1.png)
+
+开始执行 microtask 队列，核心方法是 [MicrotaskQueueBuiltinsAssembler::RunSingleMicrotask]，是用 CodeStubAssembler 写的，代码很长，逻辑简单，这里就不再贴代码了，笔者预计之后的版本 V8 会用 Torque 重写的。
 
 
 p1 最终是 rejected 状态，但 p1 只有 fulfilled 状态的处理函数，没有 rejected 状态的处理函数
