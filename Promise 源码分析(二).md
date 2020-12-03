@@ -254,15 +254,17 @@ macro PromiseReactionJob(
 }
 ```
 
-向 PromiseReactionJob 传递的参数和 microtask 有关，argument 参数是 '123'，handler 是函数 () => {throw new Error('456')}，promiseOrCapability 是 p1，reactionType 是 kPromiseReactionFulfill。
+PromiseReactionJob 接收的参数和 microtask 密切相关，argument 参数是 '123'，handler 是函数 () => {throw new Error('456')}，promiseOrCapability 是 p1，reactionType 是 kPromiseReactionFulfill。
 
-handler 有值，进入 else 分支，在 try...catch 包裹下，试图调用 handler。handler 里 throw new Error('456') 抛出异常，被 catch 捕捉，调用 RejectPromiseReactionJob 方法，从函数名字也可以看出，p1 最终状态为 rejected。后面的代码和 JS 层面直接调用 reject 的代码差不多，向 microtask 队列插入一个 microtask，这里不再赘述。当前 microtask 执行完毕后，microtask 队列简略示意图如下：
+handler 有值，进入 else 分支，在 try...catch 包裹下，试图调用 handler。handler 里 throw new Error('456') 抛出异常，被 catch 捕捉，调用 RejectPromiseReactionJob 方法，从函数名字也可以看出，p1 最终状态为 rejected。后面的代码和 JS 层面直接调用 reject 代码差不多，向 microtask 队列插入一个 microtask，这里不再赘述。当前 microtask 执行完毕后，会从 microtask 队列移除。
+
+新增一个新 microtask，移除一个旧 microtask 后，microtask 队列简略示意图如下：
 
 ![promise2](https://raw.githubusercontent.com/xudale/blog/master/assets/p2.png)
 
 handler 为 undefined 的原因是 p1 的最终状态是 rejected，但却没有 rejected 状态的处理函数。
 
-开始执行下一个 microtask，还是调用上文提到的 PromiseReactionJob，argument 参数为 Error('456')，handler 是 undefined，promiseOrCapability 是 p2，reactionType 是 kPromiseReactionReject。由于 handler 是 undefined，这一次走的是 if 分支，最终调用了 RejectPromiseReactionJob，将 p2 状态置为 rejected。p1 相当于一个中转站，收到了 Error('456')，自己没能力处理，继续往下传给了 p2。执行完当前 microtask 后，microtask 队列的简略示意图如下：
+开始执行下一个 microtask，还是调用上文提到的 PromiseReactionJob，argument 参数为 Error('456')，handler 是 undefined，promiseOrCapability 是 p2，reactionType 是 kPromiseReactionReject。由于 handler 是 undefined，这一次走的是 if 分支，最终调用了 RejectPromiseReactionJob，将 p2 状态置为 rejected。p1 相当于一个中转站，收到了 Error('456')，自己没有相应状态的处理函数，继续向下传给了 p2。执行完当前 microtask 后，microtask 队列的简略示意图如下：
 
 ![promise3](https://raw.githubusercontent.com/xudale/blog/master/assets/p3.png)
 
@@ -272,9 +274,13 @@ handler 为 undefined 的原因是 p1 的最终状态是 rejected，但却没有
 
 后面的流程和之前一样，就不解释了，上一个 microtask 的 handler (e) => console.log(e) 的返回值是 undefined，所以 (data) => console.log(data) 打印 undefined。
 
+执行完所有 microtask 后，p0、p1、p2、p3 和 p4 状态如下，图是从浏览器控制台截的。
+
+![5Promise](https://raw.githubusercontent.com/xudale/blog/master/assets/5Promise.png)
+
 ## 总结与感想
 
-本文看似篇幅很长，其实大部分内容就是 [Promise A+](https://promisesaplus.com/#notes) 规范的 2.2.7 节。
+本文看似篇幅略长，其实大部分内容是 [Promise A+](https://promisesaplus.com/#notes) 规范的 2.2.7 节，规范简直字字珠玑。
 
 ![PromiseAPlus227](https://raw.githubusercontent.com/xudale/blog/master/assets/PromiseAPlus227.png)
 
