@@ -218,7 +218,7 @@ p1、p2、p3 和 p4 这 4 个 Promise 都处于 pending 状态，microtask 队�
 
 开始执行 microtask 队列，核心方法是 [MicrotaskQueueBuiltinsAssembler::RunSingleMicrotask](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/builtins-microtask-queue-gen.cc#114)，代码是用 CodeStubAssembler 写的，代码很长，逻辑简单，评论区经常有提看不懂 CodeStubAssembler 这种类汇编语言，这里就不再贴代码了，预计之后的版本 V8 会用 Torque 重写的。
 
-在执行 microtask 的过程中，MicrotaskQueueBuiltinsAssembler::RunSingleMicrotask 会调用 [PromiseReactionJob](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-reaction-job.tq#43)，源码如下：
+在执行 microtask 的过程中，MicrotaskQueueBuiltinsAssembler::RunSingleMicrotask 会调用 [PromiseReactionJob](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/promise-reaction-job.tq#73)，源码如下：
 
 ```C++
 transitioning
