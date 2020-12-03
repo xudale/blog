@@ -216,33 +216,61 @@ p1、p2、p3 和 p4 这 4 个 Promise 都处于 pending 状态，microtask 队�
 
 ![promise1](https://raw.githubusercontent.com/xudale/blog/master/assets/p1.png)
 
-开始执行 microtask 队列，核心方法是 [MicrotaskQueueBuiltinsAssembler::RunSingleMicrotask]，是用 CodeStubAssembler 写的，代码很长，逻辑简单，这里就不再贴代码了，笔者预计之后的版本 V8 会用 Torque 重写的。
+开始执行 microtask 队列，核心方法是 [MicrotaskQueueBuiltinsAssembler::RunSingleMicrotask](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/builtins-microtask-queue-gen.cc#114)，是用 CodeStubAssembler 写的，代码很长，逻辑简单，经常有评论说看不懂 CodeStubAssembler 这种类汇编语言，这里就不再贴代码了，笔者预计之后的版本 V8 会用 Torque 重写的。
 
-
-p1 最终是 rejected 状态，但 p1 只有 fulfilled 状态的处理函数，没有 rejected 状态的处理函数
-
-## 基本数据结构
-
-### 三种状态
-
-Promise 共有 3 种状态，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/8.4-lkgr/src/builtins/base.tq#190)：
+在执行 microtask 的过程中，[PromiseReactionJob]() 会被调用，源码如下：
 
 ```C++
-// Promise constants
-extern enum PromiseState extends int31 constexpr 'Promise::PromiseState' {
-  kPending,
-  kFulfilled,
-  kRejected
+transitioning
+macro PromiseReactionJob(
+    context: Context, argument: JSAny, handler: Callable|Undefined,
+    promiseOrCapability: JSPromise|PromiseCapability|Undefined,
+    reactionType: constexpr PromiseReactionType): JSAny {
+  if (handler == Undefined) {
+    if constexpr (reactionType == kPromiseReactionFulfill) {
+      return FuflfillPromiseReactionJob(
+          context, promiseOrCapability, argument, reactionType);
+    } else {
+      return RejectPromiseReactionJob(
+          context, promiseOrCapability, argument, reactionType);
+    }
+  } else {
+    try {
+      const result =
+          Call(context, UnsafeCast<Callable>(handler), Undefined, argument);
+        return FuflfillPromiseReactionJob(
+            context, promiseOrCapability, result, reactionType);
+    } catch (e) {
+      return RejectPromiseReactionJob(
+          context, promiseOrCapability, e, reactionType);
+    }
+  }
 }
 ```
 
-一个新创建的 Promise 处于 pending 状态。当调用 resolve 或 reject 函数后，Promise 处于 fulfilled 或 rejected 状态，此后 Promise 的状态保持不变，也就是说 Promise 的状态改变是不可逆的，Promise 源码中出现了多处状态相关 assert。
+向 PromiseReactionJob 传递的参数和 microtask 有关，argument 参数是 '123'，handler 是函数 () => {throw new Error('456')}，promiseOrCapability 是 p1，reactionType 是 kPromiseReactionFulfill。
+
+handler 有值，进入 else 分支，在 try...catch 包裹下，试图调用 handler。handler 里 throw new Error('456') 抛出异常，被 catch 捕捉，调用 RejectPromiseReactionJob 方法，从函数名字也可以看出，p1 最终状态为 rejected。后面的代码和 JS 层面直接调用 reject 的代码差不多，向 microtask 队列插入一个 microtask，这里不再赘述。当前 microtask 执行完毕后，microtask 队列简略示意图如下：
+
+![promise2](https://raw.githubusercontent.com/xudale/blog/master/assets/p2.png)
+
+handler 为 undefined 的原因是 p1 的最终状态是 rejected，但却没有 rejected 状态的处理函数。
+
+开始执行下一个 microtask，还是调用上文提到的 PromiseReactionJob，argument 参数为 Error('456')，handler 是 undefined，promiseOrCapability 是 p2，reactionType 是 kPromiseReactionReject。由于 handler 是 undefined，这一次走的是 if 分支，最终调用了 RejectPromiseReactionJob，将 p2 状态置为 rejected。p1 相当于一个中转站，收到了 Error('456')，自己没能力处理，继续往下传给了 p2。执行完当前 microtask 后，microtask 队列的简略示意图如下：
+
+![promise3](https://raw.githubusercontent.com/xudale/blog/master/assets/p3.png)
+
+还是执行下一个 microtask，还是调用 PromiseReactionJob，argument 是 Error('456')，handler 是 (e) => console.log(e)，promiseOrCapability 是 p3，reactionType 是 kPromiseReactionReject。在 try...catch 中试图 handler，handler 不再抛异常，打印 Error('456')，返回 undefined。最后调用 FuflfillPromiseReactionJob，使 p3 最终状态是 fulfilled。执行完当前 microtask 后，microtask 队列的简略示意图如下：
+
+![promise4](https://raw.githubusercontent.com/xudale/blog/master/assets/p4.png)
+
+后面的流程和之前一样，就不解释了，上一个 microtask 的 handler (e) => console.log(e) 的返回值是 undefined，所以 (data) => console.log(data) 打印 undefined。
 
 ## 总结与感想
 
-曾经觉得 Promise 很神秘，看了源码觉得 Promise 的本质其实还是回调函数，只不过背靠 Promise 的一系列方法和思想，改变了书写回调函数的方式。then 方法做依赖收集。resolve 收集到的依赖，放入 microtask 队列中。Promise 属于微创新，async/await 抛弃回调函数式的写法，暂停/恢复当前代码的执行，是革命性的创新。
+本文看似篇幅很长，其实大部分内容就是 [Promise A+](https://promisesaplus.com/#notes) 规范的 2.2.7 节。
 
-![promiseConclude](https://raw.githubusercontent.com/xudale/blog/master/assets/promiseConclude.png)
+![PromiseAPlus227](https://raw.githubusercontent.com/xudale/blog/master/assets/PromiseAPlus227.png)
 
 
 
