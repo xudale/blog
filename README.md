@@ -22,3 +22,5 @@
 [Promise 源码分析(二)](https://github.com/xudale/blog/blob/master/Promise%20%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90(%E4%BA%8C).md)
 
 [整数和浮点数的内存表示](https://github.com/xudale/blog/blob/master/%E6%95%B4%E6%95%B0%E5%92%8C%E6%B5%AE%E7%82%B9%E6%95%B0%E7%9A%84%E5%86%85%E5%AD%98%E8%A1%A8%E7%A4%BA.md)
+
+[reduce](https://github.com/xudale/blog/blob/master/%E6%95%B4%E6%95%B0%E5%92%8C%E6%B5%AE%E7%82%B9%E6%95%B0%E7%9A%84%E5%86%85%E5%AD%98%E8%A1%A8%E7%A4%BA.md)
