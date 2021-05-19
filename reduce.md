@@ -1,16 +1,53 @@
 # Array.prototype.reduce
-V8 源码版本 9.0。
-## typeof 源码分析
 
-每一个 Javascript 对象都是 V8 中的 [JSObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#278)，JSObject 继承 JSReceiver：
+V8 源码版本 9.0。Javascript 数组有几十个方法，reduce 是我最爱，它抽象、简洁，很多时候可以减少函数的局部变量。
+
+## 源码
+
+Array.prototype.reduce 是 V8 的 [ArrayReduce](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-reduce.tq#161)，源码如下：
 
 ```c++
-// The JSObject describes real heap allocated JavaScript objects with
-// properties.
-class JSObject : public JSReceiver {
- public:
-  static bool IsUnmodifiedApiObject(FullObjectSlot o);
-  // 后面略
+transitioning javascript builtin
+ArrayReduce(
+    js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
+  try {
+    RequireObjectCoercible(receiver, 'Array.prototype.reduce');
+
+    // 1. Let O be ? ToObject(this value).
+    // o 相当于 reduce 方法中的 this
+    const o: JSReceiver = ToObject_Inline(context, receiver);
+
+    // 2. Let len be ? ToLength(? Get(O, "length")).
+    // 获取数组(可能是类数组)长度，这个长度也就是循环次数
+    // 从这里可以看到，循环次数在数组遍历前决定
+    // 如果在遍历过程中增加或删除数组元素，循环次数不变
+    const len: Number = GetLengthProperty(o);
+
+    // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    // 如果调用 reduce 方法，却没有传参，报错
+    if (arguments.length == 0) {
+      goto NoCallableError;
+    }
+    // 获取 reduce 方法的第一个参数，回调函数
+    const callbackfn = Cast<Callable>(arguments[0]) otherwise NoCallableError;
+
+    // 试图获取 reduce 方法的第二个参数，可以为空
+    const initialValue: JSAny|TheHole =
+        arguments.length > 1 ? arguments[1] : TheHole;
+    // o 是原数组(可能是类数组的对象)
+    // len 数组长度，也是循环次数
+    // callbackfn 是 reduce 方法接收的第一个参数，回调函数
+    // initialValue 是 reduce 方法接收的第二个参数，初始值，可以为空
+    try {
+      return FastArrayReduce(o, len, callbackfn, initialValue)
+          otherwise Bailout;
+    } label Bailout(value: Number, accumulator: JSAny|TheHole) {
+      return ArrayReduceLoopContinuation(
+          o, callbackfn, accumulator, o, value, len);
+    }
+  } label NoCallableError deferred {
+    ThrowTypeError(MessageTemplate::kCalledNonCallable, arguments[0]);
+  }
 }
 ```
 
