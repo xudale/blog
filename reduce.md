@@ -1,5 +1,5 @@
-# typeof 与 Javascript 类型源码分析.md
-本文分析 typeof 及 Javascript 类型相关的源码，版本为 V8 7.7-lkgr。
+# Array.prototype.reduce
+V8 源码版本 9.0。
 ## typeof 源码分析
 
 每一个 Javascript 对象都是 V8 中的 [JSObject](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#278)，JSObject 继承 JSReceiver：
