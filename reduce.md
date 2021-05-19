@@ -51,17 +51,48 @@ ArrayReduce(
 }
 ```
 
-[JSReceiver](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/7.7-lkgr/src/objects/js-objects.h#24) 继承 HeapObject：
+ArrayReduce 的逻辑很简单，获取到数组 o；数组长度，也就是循环次数 len；回调函数 callbackfn；初始值 initialValue；因为 reduce 方法的第二个参数非必传，initialValue 可能为空。然后调用 FastArrayReduce。[FastArrayReduce](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-reduce.tq#118) 源码如下：
 
 ```c++
-// JSReceiver includes types on which properties can be defined, i.e.,
-// JSObject and JSProxy.
-class JSReceiver : public HeapObject {
- public:
-  NEVER_READ_ONLY_SPACE
-  // Returns true if there is no slow (ie, dictionary) backing store.
-  inline bool HasFastProperties() const;
-  // 后面略
+transitioning macro FastArrayReduce(implicit context: Context)(
+    o: JSReceiver, len: Number, callbackfn: Callable,
+    initialAccumulator: JSAny|TheHole): JSAny
+    labels Bailout(Number, JSAny | TheHole) {
+  const k = 0;
+  let accumulator = initialAccumulator;
+  Cast<Smi>(len) otherwise goto Bailout(k, accumulator);
+  const fastO =
+      Cast<FastJSArrayForRead>(o) otherwise goto Bailout(k, accumulator);
+  let fastOW = NewFastJSArrayForReadWitness(fastO);
+
+  // Build a fast loop over the array.
+  for (let k: Smi = 0; k < len; k++) {
+    fastOW.Recheck() otherwise goto Bailout(k, accumulator);
+
+    // Ensure that we haven't walked beyond a possibly updated length.
+    if (k >= fastOW.Get().length) goto Bailout(k, accumulator);
+
+    const value: JSAny = fastOW.LoadElementNoHole(k) otherwise continue;
+    typeswitch (accumulator) {
+      case (TheHole): {
+        accumulator = value;
+      }
+      case (accumulatorNotHole: JSAny): {
+        accumulator = Call(
+            context, callbackfn, Undefined, accumulatorNotHole, value, k,
+            fastOW.Get());
+      }
+    }
+  }
+  typeswitch (accumulator) {
+    case (TheHole): {
+      ThrowTypeError(
+          MessageTemplate::kReduceNoInitial, 'Array.prototype.reduce');
+    }
+    case (accumulator: JSAny): {
+      return accumulator;
+    }
+  }
 }
 ```
 
