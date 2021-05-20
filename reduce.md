@@ -1,6 +1,6 @@
 # Array.prototype.reduce
 
-V8 源码版本 9.0。Javascript 数组有几十个方法，reduce 是我最爱，它抽象、简洁，很多时候可以减少函数的局部变量。
+Javascript 数组有几十个方法，我最爱 reduce。它既抽象又简洁，很多时候可以有效减少代码量。本文 V8 源码版本 9.0。
 
 ## 源码
 
