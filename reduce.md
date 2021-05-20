@@ -165,6 +165,26 @@ console.log(numArray) // 打印 [1, 2, 9999999999]
 如果不考虑任何边界条件，reduce 用 Javascript 实现如下：
 
 
+```Javascript
+function reduce(...args) {
+  const array = this
+  const callBack = args[0]
+  let accumulator = args[1] || undefined
+  const len = array.length
+  for (let i = 0; i < len; i++) {
+    if (accumulator) {
+      accumulator = callBack(accumulator, array[i], i, array)
+    } else {
+      accumulator = array[i]
+    }
+  }
+  return accumulator
+}
+```
+
+
+
+
 
 
 
