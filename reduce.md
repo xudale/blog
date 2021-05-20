@@ -141,6 +141,10 @@ console.log(numArray) // 打印 [1, 2, 3, 4, 5, 6]
 
 ![reduce3](https://raw.githubusercontent.com/xudale/blog/master/assets/reduce3.png)
 
+循环次数在 for 循环前确定在 ecma 规范中有提及：
+
+> The range of elements processed by reduce is set before the first call to callbackfn. Elements that are appended to the array after the call to reduce begins will not be visited by callbackfn. If existing elements of the array are changed, their value as passed to callbackfn will be the value at the time reduce visits them; elements that are deleted after the call to reduce begins and before being visited are not visited.
+
 ## 若在循环过程中改变了数组元素，则遍历到的是改变后的元素
 
 ```Javascript
@@ -159,6 +163,10 @@ console.log(numArray) // 打印 [1, 2, 9999999999]
 在遍历过程中，通过 numArray[2] = 9999999999，改变了数组元素，当遍历到数组最后一个元素时，此时的 cur 是 9999999999，不再是数组初始化时的 3。
 
 ![reduce9](https://raw.githubusercontent.com/xudale/blog/master/assets/reduce9.png)
+
+相关规范如下：
+
+![reduceEcma](https://raw.githubusercontent.com/xudale/blog/master/assets/reduceEcma.png)
 
 ## 简易版 reduce
 
@@ -182,7 +190,10 @@ function reduce(...args) {
 }
 ```
 
+## 参考文献
 
+[ecma262:sec-array.prototype.reduce](https://tc39.es/ecma262/#sec-array.prototype.reduce)
+[mdn:Array.prototype.reduce](https://developer.mozilla.org/zh-TW/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce)
 
 
 
