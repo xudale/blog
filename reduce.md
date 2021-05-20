@@ -4,26 +4,21 @@ Javascript 数组有几十个方法，我最爱 reduce。它既抽象又简洁�
 
 ## 源码
 
-Array.prototype.reduce 是 V8 的 [ArrayReduce](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-reduce.tq#161)，源码如下：
+Javascript Array.prototype.reduce 实际调用的是 V8 的 [ArrayReduce](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-reduce.tq#161)，ArrayReduce 源码如下：
 
 ```c++
 transitioning javascript builtin
 ArrayReduce(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
   try {
-    RequireObjectCoercible(receiver, 'Array.prototype.reduce');
-
-    // 1. Let O be ? ToObject(this value).
-    // o 相当于 reduce 方法中的 this
+    // o 相当于待遍历的数组
     const o: JSReceiver = ToObject_Inline(context, receiver);
 
-    // 2. Let len be ? ToLength(? Get(O, "length")).
-    // 获取数组(可能是类数组)长度，这个长度也就是循环次数
-    // 从这里可以看到，循环次数在数组遍历前决定
+    // 获取数组(也可能是类数组)长度，这个长度也就是循环次数
+    // 从这里可以看到，循环次数在数组被遍历前确定
     // 如果在遍历过程中增加或删除数组元素，循环次数不变
     const len: Number = GetLengthProperty(o);
 
-    // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
     // 如果调用 reduce 方法，却没有传参，报错
     if (arguments.length == 0) {
       goto NoCallableError;
@@ -34,6 +29,7 @@ ArrayReduce(
     // 试图获取 reduce 方法的第二个参数，可以为空
     const initialValue: JSAny|TheHole =
         arguments.length > 1 ? arguments[1] : TheHole;
+    // 至此
     // o 是原数组(可能是类数组的对象)
     // len 数组长度，也是循环次数
     // callbackfn 是 reduce 方法接收的第一个参数，回调函数
@@ -51,7 +47,7 @@ ArrayReduce(
 }
 ```
 
-ArrayReduce 的逻辑很简单，获取到数组 o；数组长度，也就是循环次数 len；回调函数 callbackfn；初始值 initialValue；因为 reduce 方法的第二个参数非必传，initialValue 可能为空。然后调用 FastArrayReduce。[FastArrayReduce](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-reduce.tq#118) 源码如下：
+ArrayReduce 的逻辑很简单，获取数组 o；循环次数 len；回调函数 callbackfn；初始值 initialValue；因为 reduce 方法的第二个参数非必传，initialValue 可以为空。然后将上面 4 个变量当做参数传给 FastArrayReduce。[FastArrayReduce](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-reduce.tq#118) 源码如下：
 
 ```c++
 transitioning macro FastArrayReduce(implicit context: Context)(
@@ -202,6 +198,7 @@ function reduce(...args) {
 ## 参考文献
 
 [ecma262:sec-array.prototype.reduce](https://tc39.es/ecma262/#sec-array.prototype.reduce)
+
 [mdn:Array.prototype.reduce](https://developer.mozilla.org/zh-TW/docs/Web/JavaScript/Reference/Global_Objects/Array/Reduce)
 
 
