@@ -168,6 +168,15 @@ console.log(numArray) // 打印 [1, 2, 9999999999]
 
 ![reduceEcma](https://raw.githubusercontent.com/xudale/blog/master/assets/reduceEcma.png)
 
+写本小节的目的是，在日常业务开发中，每年差不多都能遇到一次希望在 forEach/reduce 里添加/删除/改变元素的场景。优雅的写法当然是
+
+```Javascript
+array.filter(someFunction1).reduce(someFunction2)
+```
+
+但遇到大数组的情况，从性能考虑，还是希望一次遍历拿下，只要了解 reduce 相关的规范和源码，在这种极端情况下，可以考虑在一次 reduce 里面处理。
+
+
 ## 简易版 reduce
 
 如果不考虑任何边界条件，reduce 用 Javascript 实现如下：
