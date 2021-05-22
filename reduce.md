@@ -1,6 +1,6 @@
-# Array.prototype.reduce
+# Array.prototype.reduce 源码分析
 
-Javascript 数组有几十个方法，我最爱 reduce。它既抽象又简洁，很多时候可以有效减少代码量。本文 V8 源码版本 9.0。
+Javascript 数组有几十个方法，笔者最爱的是 reduce。它既抽象又简洁，很多时候可以有效减少代码量。本文 V8 源码版本 9.0。
 
 ## 源码
 
@@ -35,6 +35,7 @@ ArrayReduce(
     // callbackfn 是 reduce 方法接收的第一个参数，回调函数
     // initialValue 是 reduce 方法接收的第二个参数，初始值，可以为空
     try {
+      // 主要逻辑在 FastArrayReduce
       return FastArrayReduce(o, len, callbackfn, initialValue)
           otherwise Bailout;
     } label Bailout(value: Number, accumulator: JSAny|TheHole) {
@@ -61,6 +62,7 @@ transitioning macro FastArrayReduce(implicit context: Context)(
   let fastOW = NewFastJSArrayForReadWitness(fastO);
 
   // 循环次数 len，在循环前就已确定
+  // reduce 本质还是 for 循环
   for (let k: Smi = 0; k < len; k++) {
     // 取出待遍历的数组元素
     const value: JSAny = fastOW.LoadElementNoHole(k) otherwise continue;
@@ -89,7 +91,7 @@ transitioning macro FastArrayReduce(implicit context: Context)(
 }
 ```
 
-FastArrayReduce 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，并将每一次返回的结果，做为下一次调用 callbackfn 的参数。核心代码是 for 循环。
+FastArrayReduce 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，并将每一次返回的结果，做为下一次调用 callbackfn 的参数。
 
 ```c++
 for (let k: Smi = 0; k < len; k++) {
@@ -99,6 +101,8 @@ for (let k: Smi = 0; k < len; k++) {
       accumulator = value;
     }
     case (accumulatorNotHole: JSAny): {
+      // 这里调用 callbackfn，最后面的 4 个参数
+      // 传给 callbackfn 
       accumulator = Call(
           context, callbackfn, Undefined, accumulatorNotHole, value, k,
           fastOW.Get());
@@ -107,7 +111,6 @@ for (let k: Smi = 0; k < len; k++) {
 }
 return accumulator;
 ```
-
 
 ## 循环次数在 for 循环前确定
 
@@ -126,7 +129,7 @@ console.log(sum) // 打印 6
 console.log(numArray) // 打印 [1, 2, 3, 4, 5, 6]
 ```
 
-在调用 reduce 之前，numArray 的长度是 3，尽管在调用 reduce 过程中 numArray 长度变为 6，但循环只发生 3 次，打印 3 个 tick。
+在调用 reduce 之前，numArray 的长度是 3，尽管在调用 reduce 过程中 numArray 长度变为 6，但循环只发生 3 次，打印 3 个 tick，sum 结果为 6。
 
 ![reduce3](https://raw.githubusercontent.com/xudale/blog/master/assets/reduce3.png)
 
@@ -159,13 +162,13 @@ console.log(numArray) // 打印 [1, 2, 9999999999]
 
 ![reduceEcma](https://raw.githubusercontent.com/xudale/blog/master/assets/reduceEcma.png)
 
-在日常业务开发中，每年差不多都能遇到一次希望在 forEach/reduce 里删除/改变元素的场景。比如一个文本框列表，点提交时，既要做用户的输入内容校验，又要把未填写的文本框从提交的数据中删除。这种场景可维护性高而又优雅的写法当然是：
+在日常业务开发中，每年差不多都能遇到一次希望在 forEach/reduce 里删除/改变元素的场景。比如一个文本框列表，点提交时，既要做用户的输入内容校验，又要从提交的数据中删除未填写的文本框。这种场景可维护性高而又优雅的写法当然是：
 
 ```Javascript
 array.filter(someFunction1).forEach/reduce(someFunction2)
 ```
 
-先是 filter 删除未填写的文本框，然后 forEach/reduce 做校验或拼装提交给后端的数据。但遇到大数组的情况，从性能考虑，还是希望一次遍历解决问题。只要了解 reduce 相关的规范和源码，在这种极端情况下，可以考虑在一次 forEach/reduce 里面处理。
+先调用 filter 删除未填写的文本框，然后 forEach/reduce 做校验或拼装提交给后端的数据。但遇到大数组的情况，从性能考虑，还是希望一次遍历解决问题。只要了解 reduce 相关的规范和源码，在这种极端情况下，可以考虑在一次 forEach/reduce 里面处理。
 
 
 ## 简易版 reduce
@@ -189,7 +192,7 @@ function reduce(...args) {
 }
 ```
 
-上面代码最明显的一个 bug 是如果 i > 0，但 callback 返回了 null/undefined，下一次循环则直接进入了 else 分支 accumulator = array[i]。为了简洁，笔都不改了。mdn 有符合规范的 Javascript 版本。
+上面代码最明显的一个 bug 是如果 i > 0，但 callback 返回了 null/undefined，下一次循环则直接进入了 else 分支 accumulator = array[i]。为了简洁，笔者不改了，mdn 有符合规范的 reduce Javascript 实现版本，见参考文献。
 
 
 ## 参考文献
