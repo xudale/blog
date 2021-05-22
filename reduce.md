@@ -56,27 +56,20 @@ transitioning macro FastArrayReduce(implicit context: Context)(
     labels Bailout(Number, JSAny | TheHole) {
   const k = 0;
   let accumulator = initialAccumulator;
-  Cast<Smi>(len) otherwise goto Bailout(k, accumulator);
   const fastO =
       Cast<FastJSArrayForRead>(o) otherwise goto Bailout(k, accumulator);
   let fastOW = NewFastJSArrayForReadWitness(fastO);
 
-  // Build a fast loop over the array.
   // 循环次数 len，在循环前就已确定
   for (let k: Smi = 0; k < len; k++) {
-    fastOW.Recheck() otherwise goto Bailout(k, accumulator);
-
-    // Ensure that we haven't walked beyond a possibly updated length.
-    if (k >= fastOW.Get().length) goto Bailout(k, accumulator);
-    // 待遍历的元素，运行时决定
+    // 取出待遍历的数组元素
     const value: JSAny = fastOW.LoadElementNoHole(k) otherwise continue;
     typeswitch (accumulator) {
       case (TheHole): {
         accumulator = value;
       }
       case (accumulatorNotHole: JSAny): {
-        // 这里调用了 reduce 方法接收的回调函数
-        // accumulatorNotHole，value，k，fastOW.Get() 是 4 个参数
+        // 这里的 callbackfn 是 reduce 方法接收的回调函数，调用之
         accumulator = Call(
             context, callbackfn, Undefined, accumulatorNotHole, value, k,
             fastOW.Get());
@@ -96,7 +89,7 @@ transitioning macro FastArrayReduce(implicit context: Context)(
 }
 ```
 
-FastArrayReduce 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，并将每一次返回的结果，做为下一次调用 callbackfn 的参数。精简一下，核心代码也就一个 for 循环。
+FastArrayReduce 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，并将每一次返回的结果，做为下一次调用 callbackfn 的参数。核心代码是 for 循环。
 
 ```c++
 for (let k: Smi = 0; k < len; k++) {
@@ -118,7 +111,7 @@ return accumulator;
 
 ## 循环次数在 for 循环前确定
 
-比如下面的代码：
+如果在 reduce 接收的 callback 回调函数中，改变数组的长度，并不影响 for 循环次数。比如下面的代码：
 
 ```Javascript
 const numArray = [1, 2, 3]
@@ -133,15 +126,17 @@ console.log(sum) // 打印 6
 console.log(numArray) // 打印 [1, 2, 3, 4, 5, 6]
 ```
 
-在调用 reduce 之前，numArray 的长度是 3，尽管在调用 reduce 过程中 numArray 长度变为 6。但循环只有 3 次。
+在调用 reduce 之前，numArray 的长度是 3，尽管在调用 reduce 过程中 numArray 长度变为 6，但循环只发生 3 次，打印 3 个 tick。
 
 ![reduce3](https://raw.githubusercontent.com/xudale/blog/master/assets/reduce3.png)
 
-循环次数在 for 循环前确定在 ecma 规范中有提及：
+ecma 规范中有提及循环次数在 for 循环前确定：
 
 > The range of elements processed by reduce is set before the first call to callbackfn. Elements that are appended to the array after the call to reduce begins will not be visited by callbackfn. If existing elements of the array are changed, their value as passed to callbackfn will be the value at the time reduce visits them; elements that are deleted after the call to reduce begins and before being visited are not visited.
 
 ## 若在循环过程中改变了数组元素，则遍历到的是改变后的元素
+
+如果在 reduce 接收的 callback 回调函数中，改变了数组元素，则后面的循环遍历到的是改变后的元素，比如下面代码：
 
 ```Javascript
 const numArray = [1, 2, 3]
@@ -164,19 +159,18 @@ console.log(numArray) // 打印 [1, 2, 9999999999]
 
 ![reduceEcma](https://raw.githubusercontent.com/xudale/blog/master/assets/reduceEcma.png)
 
-写本小节的目的是，在日常业务开发中，每年差不多都能遇到一次希望在 forEach/reduce 里添加/删除/改变元素的场景。优雅的写法当然是
+在日常业务开发中，每年差不多都能遇到一次希望在 forEach/reduce 里删除/改变元素的场景。比如一个文本框列表，点提交时，既要做用户的输入内容校验，又要把未填写的文本框从提交的数据中删除。这种场景可维护性高而又优雅的写法当然是：
 
 ```Javascript
-array.filter(someFunction1).reduce(someFunction2)
+array.filter(someFunction1).forEach/reduce(someFunction2)
 ```
 
-但遇到大数组的情况，从性能考虑，还是希望一次遍历拿下，只要了解 reduce 相关的规范和源码，在这种极端情况下，可以考虑在一次 reduce 里面处理。
+先是 filter 删除未填写的文本框，然后 forEach/reduce 做校验或拼装提交给后端的数据。但遇到大数组的情况，从性能考虑，还是希望一次遍历解决问题。只要了解 reduce 相关的规范和源码，在这种极端情况下，可以考虑在一次 forEach/reduce 里面处理。
 
 
 ## 简易版 reduce
 
-如果不考虑任何边界条件，reduce 用 Javascript 实现如下：
-
+如果不考虑任何边界条件，尽可能模仿 V8 FastArrayReduce 的实现逻辑，reduce 方法可用 Javascript 实现如下：
 
 ```Javascript
 function reduce(...args) {
@@ -194,6 +188,9 @@ function reduce(...args) {
   return accumulator
 }
 ```
+
+上面代码最明显的一个 bug 是如果 i > 0，但 callback 返回了 null/undefined，下一次循环则直接进入了 else 分支 accumulator = array[i]。为了简洁，笔都不改了。mdn 有符合规范的 Javascript 版本。
+
 
 ## 参考文献
 
