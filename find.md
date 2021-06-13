@@ -1,6 +1,6 @@
 # Array.prototype.find 源码分析
 
-源码涉及 V8 的两个函数：ArrayPrototypeFind 和 FastArrayFind。先调用 ArrayPrototypeFind，收集遍历需要的信息，如遍历次数、回调函数、thisArg 等。最后调用 FastArrayFind 完成核心的查找逻辑，遍历数组，将数组中的每一个元素都当做参数传入回调函数，直到回调函数返回 true，返回当前遍历的数组元素。
+源码涉及 V8 的两个函数：ArrayPrototypeFind 和 FastArrayFind。先调用 ArrayPrototypeFind，收集遍历需要的信息，如遍历次数、回调函数、thisArg 等。最后调用 FastArrayFind 完成核心的查找逻辑。
 
 ## ArrayPrototypeFind
 
@@ -44,7 +44,6 @@ transitioning macro FastArrayFind(implicit context: Context)(
   const smiLen = Cast<Smi>(len) otherwise goto Bailout(k);
   const fastO = Cast<FastJSArray>(o) otherwise goto Bailout(k);
   let fastOW = NewFastJSArrayWitness(fastO);
-
   // 核心逻辑在此
   for (; k < smiLen; k++) {
     // 获取第 k 个元素
@@ -65,7 +64,9 @@ transitioning macro FastArrayFind(implicit context: Context)(
 }
 ```
 
-FastArrayfind 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回的结果可以转为 true，则返回当前遍历的元素 value，函数结束。如果 for 循环结束，说明没有找到能使 callbackfn 返回 true 的元素，此时执行最后一行代码：return Undefined。
+FastArrayfind 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回的结果可以转为 true，则返回当前遍历的元素：value。如果 for 循环结束，说明没有找到能使 callbackfn 返回 true 的元素，此时执行最后一行代码：return Undefined。
+
+从整个遍历过程可以看出，find 方法并不改变原数组。
 
 以下内容摘自 [mdn](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/find)。
 
