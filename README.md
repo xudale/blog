@@ -26,3 +26,7 @@
 [reduce](https://github.com/xudale/blog/blob/master/reduce.md)
 
 [filter](https://github.com/xudale/blog/blob/master/filter.md)
+
+[find](https://github.com/xudale/blog/blob/master/find.md)
+
+[some](https://github.com/xudale/blog/blob/master/some.md)
