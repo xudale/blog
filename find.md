@@ -80,13 +80,11 @@ FastArrayfind 的核心逻辑是 for 循环，在 for 循环中反复调用 call
 function find(callback, thisArg) {
   const array = this
   const len = array.length
-  const result = []
   for (i = 0; i < len; i++) {
     if (callback.call(thisArg, array[i], i, array)) {
-      result.push(array[i])
+      return array[i]
     }
   }
-  return result
 }
 ```
 
@@ -94,7 +92,7 @@ function find(callback, thisArg) {
 
 [ecma262:sec-array.prototype.find](https://tc39.es/ecma262/#sec-array.prototype.find)
 
-[mdn:Array.prototype.find](https://developer.mozilla.org/zh-TW/docs/Web/JavaScript/Reference/Global_Objects/Array/filter)
+[mdn:Array.prototype.find](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/find)
 
 
 
