@@ -1,10 +1,10 @@
 # Array.prototype.filter 源码分析
 
-相关代码主要有两个函数，先调用 ArrayFilter，收集遍历需要的信息，如遍历次数、回调函数、获取 thisArg 等。最后调用 FastArrayFilter 完成遍历逻辑，生成新数组。
+源码涉及 V8 的两个函数：ArrayFilter 和 FastArrayFilter。先调用 ArrayFilter，收集遍历需要的信息，如遍历次数、回调函数、thisArg 等。最后调用 FastArrayFilter 完成核心的过滤(filter)逻辑，生成新数组。
 
 ## ArrayFilter
 
-Javascript Array.prototype.filter 实际调用的是 V8 的 [ArrayFilter](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-filter.tq#149)ArrayFilter 源码如下：
+Javascript Array.prototype.filter 实际调用的是 V8 的 ArrayFilter，[ArrayFilter](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-filter.tq#149) 源码如下：
 
 ```c++
 transitioning javascript builtin
@@ -29,14 +29,13 @@ ArrayFilter(
     let k: Number = 0;
     let to: Number = 0;
     try {
-
       try {
         const smiLen: Smi = Cast<Smi>(len) otherwise goto Bailout(k, to);
         const fastOutput =
             Cast<FastJSArray>(output) otherwise goto Bailout(k, to);
         const fastO = Cast<FastJSArray>(o) otherwise goto Bailout(k, to);
-        // 调用 FastArrayFilter
-        // fastO：等遍历的数组
+        // 调用 FastArrayFilter，参数如下：
+        // fastO：待遍历的数组
         // smiLen：遍历次数
         // callbackfn：回调函数
         // thisArg：调用 callbackfn 时传入的 this
@@ -57,7 +56,7 @@ ArrayFilter(
 }
 ```
 
-Arrayfilter 的逻辑很简单，获取数组 o；循环次数 len；回调函数 callbackfn；因为 filter 方法的第二个参数非必传，thisArg 可能为空。然后将上面 4 个变量当做参数传给 FastArrayfilter。[FastArrayfilter](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-filter.tq#98) 源码如下：
+Arrayfilter 的逻辑很简单，获取数组 o，循环次数 len，回调函数 callbackfn。因为 filter 方法的第二个参数非必传，thisArg 可能为空。output 是 filter 返回的最终结果。将上面 5 个变量当做参数传给 FastArrayfilter。[FastArrayfilter](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-filter.tq#98) 源码如下：
 
 ```c++
 transitioning macro FastArrayFilter(implicit context: Context)(
@@ -68,20 +67,19 @@ Bailout(Number, Number) {
   let to: Smi = 0;
   let fastOW = NewFastJSArrayWitness(fastO);
   let fastOutputW = NewFastJSArrayWitness(output);
-
   // 整个 Array.prototype.filter 核心逻辑是下面的循环
   for (; k < len; k++) {
     // 获取第 k 个元素
     const value: JSAny = fastOW.LoadElementNoHole(k) otherwise continue;
     const result: JSAny =
       // 将 thisArg 传给 callbackfn 的 this
-      // value, k, fastOW.Get() 对应 callbackfn 接收的 3 个参数
+      // value, k, fastOW.Get() 对应 callbackfn 接收的 3 个参数：value，index，array
       Call(context, callbackfn, thisArg, value, k, fastOW.Get());
     // ToBoolean 将 result 转成 Boolean 类型
-    // 如果转为 true，则执行下面 if 分支
+    // 如果结果为 true，则执行下面 if 分支
     if (ToBoolean(result)) {
       try {
-        // 将 value 放入等返回的数组
+        // 将 value 放入待返回的数组
         fastOutputW.Push(value) otherwise SlowStore;
       } label SlowStore {
         FastCreateDataProperty(fastOutputW.stable, to, value);
@@ -92,7 +90,9 @@ Bailout(Number, Number) {
 }
 ```
 
-FastArrayfilter 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回 true，将遍历的 value 放入 fastOutputW 数组。下面内容摘自 mdn。
+FastArrayfilter 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回 true，将遍历的 value 放入 fastOutputW 数组。fastOutputW 也是 Array.prototype.filter 的最终返回结果。
+
+以下内容摘自 [mdn](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/filter)。
 
 > filter 遍历的元素范围在第一次调用 callback 之前就已经确定了。在调用 filter 之后被添加到数组中的元素不会被 filter 遍历到。如果已经存在的元素被改变了，则他们传入 callback 的值是 filter 遍历到它们那一刻的值。被删除或从来未被赋值的元素不会被遍历到。
 
