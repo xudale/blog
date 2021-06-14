@@ -30,3 +30,5 @@
 [find](https://github.com/xudale/blog/blob/master/find.md)
 
 [some](https://github.com/xudale/blog/blob/master/some.md)
+
+[findIndex](https://github.com/xudale/blog/blob/master/findIndex.md)
