@@ -4,7 +4,7 @@ Array.prototype.findIndex 与 Array.prototype.find 的源码几乎是相同的�
 
 ![findfindIndex](https://raw.githubusercontent.com/xudale/blog/master/assets/findfindIndex.png)
 
-区别主要在于两行代码，已用蓝框标出：
+区别主要在于两行代码，已用蓝框标出。
 
 |                                    | Array.prototype.find | Array.prototype.findIndex |
 | -----------------------------------| -------------------- | -------------------- |

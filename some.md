@@ -4,7 +4,7 @@ Array.prototype.some 与 Array.prototype.find 的源码几乎是相同的，如�
 
 ![findsome](https://raw.githubusercontent.com/xudale/blog/master/assets/findsome.png)
 
-区别主要在于两行代码，已用蓝框标出：
+区别主要在于两行代码，已用蓝框标出。
 
 |                                    | Array.prototype.find | Array.prototype.some |
 | -----------------------------------| -------------------- | -------------------- |
