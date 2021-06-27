@@ -99,11 +99,14 @@ emptyArray.every(_ => false) // 对空数组调用 every，返回 true
 function every(callback, thisArg) {
   const array = this
   const len = array.length
-  for (i = 0; i < len; i++) {
+  for (let i = 0; i < len; i++) {
     if (callback.call(thisArg, array[i], i, array)) {
-      return array[i]
+      continue
+    } else {
+      return false
     }
   }
+  return true
 }
 ```
 
