@@ -35,4 +35,6 @@
 
 [every](https://github.com/xudale/blog/blob/master/every.md)
 
+[forEach](https://github.com/xudale/blog/blob/master/forEach.md)
+
 [includes](https://github.com/xudale/blog/blob/master/includes.md)

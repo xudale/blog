@@ -1,15 +1,15 @@
 # Array.prototype.foreach 源码分析
 
-源码涉及 V8 的两个函数：ArrayEvery 和 FastArrayEvery。先调用 ArrayEvery，收集遍历需要的信息，如遍历次数、回调函数、thisArg 等。最后调用 FastArrayEvery 完成核心的遍历逻辑。
+源码涉及 V8 的两个函数：ArrayForEach 和 FastArrayForEach。先调用 ArrayForEach，收集遍历需要的信息，如遍历次数、回调函数、thisArg 等。最后调用 FastArrayForEach 完成核心的遍历逻辑。
 
-## ArrayEvery
+## ArrayForEach
 
-Javascript Array.prototype.foreach 实际调用的是 V8 的 ArrayEvery，[ArrayEvery](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-foreach.tq#111) 源码如下：
+Javascript Array.prototype.foreach 实际调用的是 V8 的 ArrayForEach，[ArrayForEach](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-foreach.tq#92) 源码如下：
 
 ```c++
 // https://tc39.github.io/ecma262/#sec-array.prototype.foreach
 transitioning javascript builtin
-ArrayEvery(
+ArrayForEach(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
   try {
     // 获取数组
@@ -25,54 +25,44 @@ ArrayEvery(
     const thisArg: JSAny = arguments[1];
 
     // Special cases.
+    // Special cases.
+    let k: Number = 0;
     try {
-      return FastArrayEvery(o, len, callbackfn, thisArg)
+      return FastArrayForEach(o, len, callbackfn, thisArg)
           otherwise Bailout;
     } label Bailout(kValue: Smi) deferred {
-      return ArrayEveryLoopContinuation(
-          o, callbackfn, thisArg, Undefined, o, kValue, len, Undefined);
+      k = kValue;
     }
-  } label TypeError deferred {
-    ThrowTypeError(MessageTemplate::kCalledNonCallable, arguments[0]);
-  }
 }
 ```
 
-ArrayEvery 的逻辑很简单，获取数组 o，循环次数 len，回调函数 callbackfn。因为 foreach 方法的第二个参数非必传，thisArg 可能为空。将上面的 4 个变量当做参数传给 FastArrayforeach，[FastArrayforeach](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-foreach.tq#86) 源码如下：
+ArrayForEach 的逻辑很简单，获取数组 o，循环次数 len，回调函数 callbackfn。因为 foreach 方法的第二个参数非必传，thisArg 可能为空。将上面的 4 个变量当做参数传给 FastArrayForEach，[FastArrayForEach](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-foreach.tq#70) 源码如下：
 
 ```c++
-transitioning macro FastArrayEvery(implicit context: Context)(
+transitioning macro FastArrayForEach(implicit context: Context)(
     o: JSReceiver, len: Number, callbackfn: Callable, thisArg: JSAny): JSAny
     labels Bailout(Smi) {
+
   let k: Smi = 0;
   const smiLen = Cast<Smi>(len) otherwise goto Bailout(k);
-  const fastO: FastJSArray = Cast<FastJSArray>(o) otherwise goto Bailout(k);
+  const fastO = Cast<FastJSArray>(o) otherwise goto Bailout(k);
   let fastOW = NewFastJSArrayWitness(fastO);
 
-  // 核心逻辑开始
+  // 遍历开始
   for (; k < smiLen; k++) {
-    // 获取当前待遍历元素 value
-    const value: JSAny = fastOW.LoadElementNoHole(k) otherwise continue;
-    // 调用回调函数 callbackfn
-    // thisArg: callbackfn 接收的 this
-    // value: callbackfn 的第 1 个参数 value
-    // k: callbackfn 的第 2 个参数 index
-    // fastOW.Get(): callbackfn 的第 3 个参数 array
-    const result: JSAny =
-        Call(context, callbackfn, thisArg, value, k, fastOW.Get());
-    // 如果 result 为 false，返回 false
-    // 否则继续循环
-    if (!ToBoolean(result)) {
-      return False;
-    }
+    // Ensure that we haven't walked beyond a possibly updated length.
+    if (k >= fastOW.Get().length) goto Bailout(k);
+    const value: JSAny = fastOW.LoadElementNoHole(k)
+        otherwise continue;
+    Call(context, callbackfn, thisArg, value, k, fastOW.Get());
   }
-  // 注意: 如果为空数组
-  // 或者每次调用 callbackfn 都返回 true，则函数返回 true
-  return True;
+  // 返回 Undefined 
+  // 多希望可以返回原数组啊，这样就可以链式调用了
+  return Undefined;
 }
 ```
 
-FastArrayEvery 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回的结果可以转为 false，则函数整体返回 false。如果 for 循环结束，说明每个元素都满足 callbackfn 的测试条件，此时执行最后一行代码：return True。
+FastArrayForEach 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回的结果可以转为 false，则函数整体返回 false。如果 for 循环结束，说明每个元素都满足 callbackfn 的测试条件，此时执行最后一行代码：return True。
 
 值得注意的一点是，对空数组调用 foreach，永远返回 true。这一点非常不符合直觉，笔者在这总计踩坑两次。如：
 
