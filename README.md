@@ -33,4 +33,6 @@
 
 [findIndex](https://github.com/xudale/blog/blob/master/findIndex.md)
 
+[every](https://github.com/xudale/blog/blob/master/every.md)
+
 [includes](https://github.com/xudale/blog/blob/master/includes.md)

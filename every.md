@@ -1,6 +1,6 @@
 # Array.prototype.every 源码分析
 
-源码涉及 V8 的两个函数：ArrayEvery 和 FastArrayEvery。先调用 ArrayEvery，收集遍历需要的信息，如遍历次数、回调函数、thisArg 等。最后调用 FastArrayEvery 完成核心的查找逻辑。
+源码涉及 V8 的两个函数：ArrayEvery 和 FastArrayEvery。先调用 ArrayEvery，收集遍历需要的信息，如遍历次数、回调函数、thisArg 等。最后调用 FastArrayEvery 完成核心的遍历逻辑。
 
 ## ArrayEvery
 
@@ -12,7 +12,6 @@ transitioning javascript builtin
 ArrayEvery(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
   try {
-
     // 获取数组
     const o: JSReceiver = ToObject_Inline(context, receiver);
 
@@ -67,15 +66,15 @@ transitioning macro FastArrayEvery(implicit context: Context)(
       return False;
     }
   }
-  // 如果为空数组
+  // 注意: 如果为空数组
   // 或者每次调用 callbackfn 都返回 true，则函数返回 true
   return True;
 }
 ```
 
-FastArrayEvery 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回的结果可以转为 false，则返回 false。如果 for 循环结束，说明每次调用 callbackfn 返回的都是 true，此时执行最后一行代码：return True。
+FastArrayEvery 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回的结果可以转为 false，则函数整体返回 false。如果 for 循环结束，说明每个元素都满足 callbackfn 的测试条件，此时执行最后一行代码：return True。
 
-值得注意的一点是，对空数组调用 every，永远返回 true。如：
+值得注意的一点是，对空数组调用 every，永远返回 true。这一点非常不符合直觉，笔者在这总计踩坑两次。如：
 
 ```Javascript
 const emptyArray = []
