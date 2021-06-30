@@ -62,40 +62,29 @@ transitioning macro FastArrayForEach(implicit context: Context)(
 }
 ```
 
-FastArrayForEach 的核心逻辑是 for 循环，在 for 循环中反复调用 callbackfn，如果 callbackfn 返回的结果可以转为 false，则函数整体返回 false。如果 for 循环结束，说明每个元素都满足 callbackfn 的测试条件，此时执行最后一行代码：return True。
+FastArrayForEach 的核心逻辑是 for 循环，在 for 循环中对每一个元素，都调用 callbackfn，不要 callbackfn 的返回结果。无论中间过程会如何，整个函数最后 return Undefined;
 
-值得注意的一点是，对空数组调用 foreach，永远返回 true。这一点非常不符合直觉，笔者在这总计踩坑两次。如：
 
-```Javascript
-const emptyArray = []
-emptyArray.foreach(_ => false) // 对空数组调用 foreach，返回 true
-```
 
-从整个遍历过程可以看出，foreach 方法并不改变原数组。
 
-以下内容摘自 [mdn](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/foreach)。
+以下内容摘自 [mdn](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach)。
 
-> foreach 遍历的元素范围在第一次调用 callback 之前就已确定了。在调用 foreach 之后添加到数组中的元素不会被 callback 访问到。如果数组中存在的元素被更改，则他们传入 callback 的值是 foreach 访问到他们那一刻的值。那些被删除的元素或从来未被赋值的元素将不会被访问到。
+> forEach() 遍历的范围在第一次调用 callback 前就会确定。调用 forEach 后添加到数组中的项不会被 callback 访问到。如果已经存在的值被改变，则传递给 callback 的值是 forEach() 遍历到他们那一刻的值。已删除的项不会被遍历到。如果已访问的元素在迭代时被删除了（例如使用 shift()），之后的元素将被跳过
 
-> foreach 和数学中的"所有"类似，当所有的元素都符合条件才会返回true。正因如此，若传入一个空数组，无论如何都会返回 true。（这种情况属于无条件正确：正因为一个空集合没有元素，所以它其中的所有元素都符合给定的条件)
 
 
 ## 简易版 foreach
 
-如果不考虑任何边界条件，尽可能模仿 V8 FastArrayforeach 的实现逻辑，foreach 方法可用 Javascript 实现如下：
+如果不考虑任何边界条件，尽可能模仿 V8 FastArrayForEach 的实现逻辑，foreach 方法可用 Javascript 实现如下：
 
 ```Javascript
-function foreach(callback, thisArg) {
+function forEach(callback, thisArg) {
   const array = this
   const len = array.length
-  for (let i = 0; i < len; i++) {
-    if (callback.call(thisArg, array[i], i, array)) {
-      continue
-    } else {
-      return false
-    }
+  for (i = 0; i < len; i++) {
+    callback.call(thisArg, array[i], i, array)
   }
-  return true
+  return undefined
 }
 ```
 
@@ -103,7 +92,7 @@ function foreach(callback, thisArg) {
 
 [ecma262:sec-array.prototype.foreach](https://tc39.es/ecma262/#sec-array.prototype.foreach)
 
-[mdn:Array.prototype.foreach](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/foreach)
+[mdn:Array.prototype.foreach](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach)
 
 
 
