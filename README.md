@@ -38,3 +38,5 @@
 [forEach](https://github.com/xudale/blog/blob/master/forEach.md)
 
 [includes](https://github.com/xudale/blog/blob/master/includes.md)
+
+[map](https://github.com/xudale/blog/blob/master/map.md)
