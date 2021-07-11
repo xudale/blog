@@ -155,15 +155,32 @@ function map(callback, thisArg) {
 }
 ```
 
-当然还有那道经典/讨厌的面试题：
+## 经典/讨厌的面试题：
 
 ```Javascript
 ["1", "2", "3"].map(parseInt); // 返回 [1, NaN, NaN]
 ```
 
+自从 18 年初见起，这道题，笔者从来没有做对过，做错的原因是对 parseInt("1", 0) 的理解有误。parseInt 的第 2 个参数 radix，如果传了 0，最终效果相当于没传或者传了 10，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/number.tq#253)：
+
+```c++
+transitioning builtin ParseInt(implicit context: Context)(
+    input: JSAny, radix: JSAny): Number {
+  try {
+    // 看到这一行已经足够处理那道面试题了
+    // radix 是第 2 个参数，从下面的 if 判断可见
+    // radix 参数不传、传 10 和传 0 三者效果差不多
+    if (radix != Undefined && !TaggedEqual(radix, SmiConstant(10)) &&
+        !TaggedEqual(radix, SmiConstant(0))) {
+      goto CallRuntime;
+    }
+  }
+}
+```
+
 ## 参考文献
 
-[ecma262:sec-array.prototype.foreach](https://tc39.es/ecma262/#sec-array.prototype.foreach)
+[ecma262:sec-array.prototype.map](https://tc39.es/ecma262/#sec-array.prototype.map)
 
 [mdn:Array.prototype.map](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/map)
 
