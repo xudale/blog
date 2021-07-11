@@ -27,7 +27,6 @@ ArrayMap(
     let array: JSReceiver;
     let k: Number = 0;
     try {
-
       const o: FastJSArrayForRead = Cast<FastJSArrayForRead>(receiver)
           otherwise SlowSpeciesCreate;
       const smiLength: Smi = Cast<Smi>(len)
@@ -54,7 +53,6 @@ transitioning macro FastArrayMap(implicit context: Context)(
   let fastOW = NewFastJSArrayForReadWitness(fastO);
   // 新创建一个定长数组，用于存返回结果
   let vector = NewVector(len);
-
   try {
     for (; k < len; k++) {
       try {
@@ -67,12 +65,12 @@ transitioning macro FastArrayMap(implicit context: Context)(
       }
     }
   }
-  // 循环结束，返回 vector
+  // 循环结束，返回新生成的数组
   return vector.CreateJSArray(len);
 }
 ```
 
-FastArrayMap 的核心逻辑是先创建一个数组 vector 用于存放返回结果，然后开始 for 循环，在 for 循环中对每一个元素，都调用 callbackfn，并将当前 callbackfn 的返回值 result 存入 vector，for 循环结束后返回 vector。
+FastArrayMap 的核心逻辑是先创建一个数组 vector 用于存放返回结果，然后开始 for 循环，在 for 循环中对每一个元素，都调用 callbackfn，并将当前 callbackfn 的返回值 result 存入 vector，for 循环结束后返回 vector.CreateJSArray(len)
 
 ## 其它相关源码
 
@@ -129,7 +127,7 @@ struct Vector {
 }
 ```
 
-FastArrayMap 把每一个回调函数的返回结果都存入 vector，调用的是 StoreResult，StoreResult 的逻辑是把元素存入 fixedArray 字段，同时判断一下当前数组的类型。
+FastArrayMap 把每一个回调函数的返回结果都存入 vector，调用的是 StoreResult，StoreResult 的逻辑是把元素存入 fixedArray 字段，同时根据入参的类型，修改一下当前数组的类型 onlySmis 和 onlyNumbers。
 
 FastArrayMap 的最后一行是 return vector.CreateJSArray(len)，CreateJSArray 的逻辑是返回 JS 代码能访问的那种数组，同时根据数组类型，做了下优化。
 
@@ -155,13 +153,13 @@ function map(callback, thisArg) {
 }
 ```
 
-## 经典/讨厌的面试题：
+## 经典/八股的面试题：
 
 ```Javascript
 ["1", "2", "3"].map(parseInt); // 返回 [1, NaN, NaN]
 ```
 
-自从 18 年初见起，这道题，笔者从来没有做对过，做错的原因是对 parseInt("1", 0) 的理解有误。parseInt 的第 2 个参数 radix，如果传了 0，最终效果相当于没传或者传了 10，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/number.tq#253)：
+自打 18 年在某在线教育公司初见，这道题，笔者从来没有做对过，做错的原因是对 parseInt("1", 0) 的理解有误。parseInt 的第 2 个参数 radix，如果传了 0，最终效果近似于没传或者传了 10，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/number.tq#253)：
 
 ```c++
 transitioning builtin ParseInt(implicit context: Context)(
@@ -170,6 +168,7 @@ transitioning builtin ParseInt(implicit context: Context)(
     // 看到这一行已经足够处理那道面试题了
     // radix 是第 2 个参数，从下面的 if 判断可见
     // radix 参数不传、传 10 和传 0 三者效果差不多
+    // 进入了同一个逻辑分支
     if (radix != Undefined && !TaggedEqual(radix, SmiConstant(10)) &&
         !TaggedEqual(radix, SmiConstant(0))) {
       goto CallRuntime;
