@@ -86,6 +86,20 @@ FUNCTION_REFERENCE(libc_memmove_function, libc_memmove)
 
 > shift 的底层调用了 C 语言的 memmove 做内存复制，复杂度 O(n)。对于超长数组，慎重调用 shift。
 
+## 简易版 shift
+
+```C++
+function shift() {
+  const array = this
+  const firstElement = array[0]
+  for (let i = 1; i < array.length; i++) {
+    array[i - 1] = array[i]
+  }
+  array.length = array.length - 1
+  return firstElement
+}
+```
+
 ## 参考文献
 
 [ecma262:sec-array.prototype.shift](https://tc39.es/ecma262/#sec-array.prototype.shift)
