@@ -2,27 +2,22 @@
 
 ## TryFastArrayShift
 
-Javascript Array.prototype.shift 实际调用的是 V8 的 TryFastArrayShift[TryFastArrayShift](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-shift.tq#8) 源码如下：
+Javascript Array.prototype.shift 实际调用的是 V8 的 [TryFastArrayShift](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-shift.tq#8)，源码如下：
 
 ```c++
 macro TryFastArrayShift(implicit context: Context)(receiver: JSAny): JSAny
     labels Slow, Runtime {
   const array: FastJSArray = Cast<FastJSArray>(receiver) otherwise Slow;
-
   // witness 相当于对数组又包了一层
   let witness = NewFastJSArrayWitness(array);
-
   // 如果是空数组，则返回 Undefined
   if (array.length == 0) {
     return Undefined;
   }
-
   // 长度 - 1
   const newLength = array.length - 1;
-
   // 获取第 0 个元素
   const result = witness.LoadElementOrUndefined(0);
-
   // 修改数组长度为原长度 - 1
   witness.ChangeLength(newLength);
   // 把 index 从 1 开始的所有数组元素
@@ -35,11 +30,11 @@ macro TryFastArrayShift(implicit context: Context)(receiver: JSAny): JSAny
 }
 ```
 
-TryFastArrayShift 的逻辑是取出 index 为 0 的元素，做为函数的返回结果。并将 index 为 1 的元素，复制到 index 0，index 为 2 的元素，复制到 index 1，依此类推。调用 ChangeLength 方法改变数组的长度，调用 StoreHole 将数组最后一个元素清空。笔者最感兴趣的是 MoveElements，因为只有这个方法从方法名字上看不出来到底做了什么工作。
+TryFastArrayShift 的逻辑是取出 index 为 0 的元素，做为函数的返回结果。并将 index 为 1 的元素，复制到 index 0，index 为 2 的元素，复制到 index 1，依此类推。调用 ChangeLength 方法改变数组的长度，调用 StoreHole 将数组最后一个元素清空。笔者最感兴趣的是 MoveElements，因为从名字上看不出来到底做了哪些工作。
 
 ## MoveElements
 
-MoveElements 底层调用了 CodeStubAssembler::MoveElements，CodeStubAssembler::MoveElements 的功能是内存复制，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/codegen/code-stub-assembler.cc#4594)：
+MoveElements 底层调用了 CodeStubAssembler::MoveElements，CodeStubAssembler::MoveElements 的功能是内存复制，后 3 个参数对应 witness.MoveElements(0, 1, Convert<intptr>(newLength)) 的 3 个参数。参数 dst_index 是 0，参数 src_index 是 1，参数 length 是 newLength。[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/codegen/code-stub-assembler.cc#4594)：
 
 ```c++
 void CodeStubAssembler::MoveElements(ElementsKind kind,
@@ -84,7 +79,7 @@ void* libc_memmove(void* dest, const void* src, size_t n) {
 FUNCTION_REFERENCE(libc_memmove_function, libc_memmove)
 ```
 
-> shift 的底层调用了 C 语言的 memmove 做内存复制，复杂度 O(n)。对于超长数组，慎重调用 shift。
+> shift 的底层调用了 C 语言的 memmove 做内存复制，复杂度 O(n)。对于超长数组，慎重调用 shift
 
 ## 简易版 shift
 
