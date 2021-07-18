@@ -1,91 +1,90 @@
 # Array.prototype.shift 源码分析
 
-源码涉及 V8 的两个函数：Arrayshift 和 FastArrayshift。先调用 Arrayshift，收集遍历需要的信息，如遍历次数、回调函数、thisArg 等。最后调用 FastArrayshift 完成核心的遍历逻辑。
+## TryFastArrayShift
 
-## Arrayshift
-
-Javascript Array.prototype.shift 实际调用的是 V8 的 Arrayshift，[Arrayshift](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-shift.tq#92) 源码如下：
+Javascript Array.prototype.shift 实际调用的是 V8 的 TryFastArrayShift[TryFastArrayShift](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-shift.tq#8) 源码如下：
 
 ```c++
-// https://tc39.github.io/ecma262/#sec-array.prototype.shift
-transitioning javascript builtin
-Arrayshift(
-    js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
-  try {
-    // 获取数组
-    const o: JSReceiver = ToObject_Inline(context, receiver);
+macro TryFastArrayShift(implicit context: Context)(receiver: JSAny): JSAny
+    labels Slow, Runtime {
+  const array: FastJSArray = Cast<FastJSArray>(receiver) otherwise Slow;
 
-    // 获取数组长度
-    const len: Number = GetLengthProperty(o);
+  // witness 相当于对数组又包了一层
+  let witness = NewFastJSArrayWitness(array);
 
-    // 获取回调函数
-    const callbackfn = Cast<Callable>(arguments[0]) otherwise TypeError;
-
-    // 获取 thisArg，可选
-    const thisArg: JSAny = arguments[1];
-
-    let k: Number = 0;
-    try {
-      return FastArrayshift(o, len, callbackfn, thisArg)
-          otherwise Bailout;
-    } label Bailout(kValue: Smi) deferred {
-      k = kValue;
-    }
+  // 如果是空数组，则返回 Undefined
+  if (array.length == 0) {
+    return Undefined;
   }
+
+  // 长度 - 1
+  const newLength = array.length - 1;
+
+  // 获取第 0 个元素
+  const result = witness.LoadElementOrUndefined(0);
+
+  // 修改数组长度为原长度 - 1
+  witness.ChangeLength(newLength);
+  // 把 index 从 1 开始的所有数组元素
+  // 复制到 index 0 开始的内存
+  witness.MoveElements(0, 1, Convert<intptr>(newLength));
+  // 将改变后的数组的最后一个元素置为空
+  witness.StoreHole(newLength);
+  // 返回原数组第 0 个元素
+  return result;
 }
 ```
 
-Arrayshift 的逻辑很简单，获取数组 o，循环次数 len，回调函数 callbackfn。因为 shift 方法的第二个参数非必传，thisArg 可能为空。将上面的 4 个变量当做参数传给 FastArrayshift，[FastArrayshift](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/builtins/array-shift.tq#70) 源码如下：
+TryFastArrayShift 的逻辑是取出 index 为 0 的元素，做为函数的返回结果。并将 index 为 1 的元素，复制到 index 0，index 为 2 的元素，复制到 index 1，依此类推。调用 ChangeLength 方法改变数组的长度，调用 StoreHole 将数组最后一个元素清空。笔者最感兴趣的是 MoveElements，因为只有这个方法从方法名字上看不出来到底做了什么工作。
+
+## MoveElements
+
+MoveElements 底层调用了 CodeStubAssembler::MoveElements，CodeStubAssembler::MoveElements 的功能是内存复制，[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/codegen/code-stub-assembler.cc#4594)：
 
 ```c++
-transitioning macro FastArrayshift(implicit context: Context)(
-    o: JSReceiver, len: Number, callbackfn: Callable, thisArg: JSAny): JSAny
-    labels Bailout(Smi) {
-
-  let k: Smi = 0;
-  const smiLen = Cast<Smi>(len) otherwise goto Bailout(k);
-  const fastO = Cast<FastJSArray>(o) otherwise goto Bailout(k);
-  let fastOW = NewFastJSArrayWitness(fastO);
-
-  // 遍历开始
-  for (; k < smiLen; k++) {
-    // Ensure that we haven't walked beyond a possibly updated length.
-    if (k >= fastOW.Get().length) goto Bailout(k);
-    // 获取当前遍历元素
-    const value: JSAny = fastOW.LoadElementNoHole(k)
-        otherwise continue;
-    Call(context, callbackfn, thisArg, value, k, fastOW.Get());
-  }
-  // 返回 Undefined 
-  // 多希望可以返回原数组啊，这样就可以链式调用了
-  return Undefined;
+void CodeStubAssembler::MoveElements(ElementsKind kind,
+                                     TNode<FixedArrayBase> elements,
+                                     TNode<IntPtrT> dst_index,
+                                     TNode<IntPtrT> src_index,
+                                     TNode<IntPtrT> length) {
+  // 计算需要复制的字节数
+  const TNode<IntPtrT> source_byte_length =
+      IntPtrMul(length, IntPtrConstant(ElementsKindToByteSize(kind)));
+  static const int32_t fa_base_data_offset =
+      FixedArrayBase::kHeaderSize - kHeapObjectTag;
+  TNode<IntPtrT> elements_intptr = BitcastTaggedToWord(elements);
+  // 内存复制的目的地址
+  TNode<IntPtrT> target_data_ptr =
+      IntPtrAdd(elements_intptr,
+                ElementOffsetFromIndex(dst_index, kind, fa_base_data_offset));
+  // 内存复制的源地址
+  TNode<IntPtrT> source_data_ptr =
+      IntPtrAdd(elements_intptr,
+                ElementOffsetFromIndex(src_index, kind, fa_base_data_offset));
+  // 获取 memmove 函数
+  TNode<ExternalReference> memmove =
+      ExternalConstant(ExternalReference::libc_memmove_function());
+  // 调用 memmove 函数，传的参数是上面得到的目的地址，源地址，待复制的字节数
+  CallCFunction(memmove, // 函数地址
+                MachineType::Pointer(), // memmove 的返回类型
+                // 传给 memmove 的 3 个参数
+                std::make_pair(MachineType::Pointer(), target_data_ptr), 
+                std::make_pair(MachineType::Pointer(), source_data_ptr),
+                std::make_pair(MachineType::UintPtr(), source_byte_length));
 }
 ```
 
-FastArrayshift 的核心逻辑是 for 循环，在 for 循环中对每一个元素，都调用 callbackfn，但是不要 callbackfn 的返回结果。最后整个函数 return Undefined;
+memmove 函数底层调用的是 C 标准库函数 memmove，C 库函数 memmove 从源地址复制 n 个字符到目的地址。[源码如下](https://chromium.googlesource.com/v8/v8.git/+/refs/heads/9.0-lkgr/src/codegen/external-reference.cc#754)：
 
-
-
-
-以下内容摘自 [mdn](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Array/shift)。
-
-> shift() 遍历的范围在第一次调用 callback 前就会确定。调用 shift 后添加到数组中的项不会被 callback 访问到。如果已经存在的值被改变，则传递给 callback 的值是 shift() 遍历到他们那一刻的值。已删除的项不会被遍历到
-
-
-## 简易版 shift
-
-如果不考虑任何边界条件，尽可能模仿 V8 FastArrayshift 的实现逻辑，shift 方法可用 Javascript 实现如下：
-
-```Javascript
-function shift(callback, thisArg) {
-  const array = this
-  const len = array.length
-  for (i = 0; i < len; i++) {
-    callback.call(thisArg, array[i], i, array)
-  }
-  return undefined
+```c++
+void* libc_memmove(void* dest, const void* src, size_t n) {
+  return memmove(dest, src, n);
 }
+
+FUNCTION_REFERENCE(libc_memmove_function, libc_memmove)
 ```
+
+> shift 的底层调用了 C 语言的 memmove 做内存复制，复杂度 O(n)。对于超长数组，慎重调用 shift。
 
 ## 参考文献
 
