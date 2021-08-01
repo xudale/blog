@@ -42,3 +42,9 @@
 [map](https://github.com/xudale/blog/blob/master/map.md)
 
 [shift](https://github.com/xudale/blog/blob/master/shift.md)
+
+[为什么 querySelectorAll 返回的不是 Array?](https://github.com/xudale/blog/blob/master/%E4%B8%BA%E4%BB%80%E4%B9%88%20querySelectorAll%20%E8%BF%94%E5%9B%9E%E7%9A%84%E4%B8%8D%E6%98%AF%20Array%3F.md)
+
+
+
+
