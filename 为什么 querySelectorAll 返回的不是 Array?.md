@@ -25,19 +25,59 @@ Array 的定义来自 [ECMA](https://tc39.es/ecma262/#sec-array-constructor)
 
 ## 源码角度
 
-如果不考虑任何边界条件，尽可能模仿 V8 FastArrayfind 的实现逻辑，find 方法可用 Javascript 实现如下：
+Chromium 源码版本 90.0。
 
-```Javascript
-function find(callback, thisArg) {
-  const array = this
-  const len = array.length
-  for (i = 0; i < len; i++) {
-    if (callback.call(thisArg, array[i], i, array)) {
-      return array[i]
-    }
-  }
+querySelectorAll 源码位于 [blink](https://chromium.googlesource.com/chromium/src/+/refs/tags/90.0.4430.8/third_party/blink/)。[querySelectorAll](https://chromium.googlesource.com/chromium/src/+/refs/tags/90.0.4430.8/third_party/blink/renderer/core/dom/parent_node.h#91) 方法源码如下：
+
+
+
+```C++
+static StaticElementList* querySelectorAll(ContainerNode& node,
+                                          const AtomicString& selectors,
+                                          ExceptionState& exception_state) {
+  return node.QuerySelectorAll(selectors, exception_state);
 }
 ```
+
+第一个参数 node 表示当前 dom 节点，第二个参数 selectors 是一个选择器对象，基本是用一个 C++ 对象把选择器字符串，如 ".xxx > div" 包了一层。从 blink 源码来看，querySelectorAll 返回的不是 JavaScript 数组，而是 StaticElementList，[源码如下](https://chromium.googlesource.com/chromium/src/+/refs/tags/90.0.4430.8/third_party/blink/renderer/core/dom/static_node_list.h#40)：
+
+
+```C++
+using StaticElementList = StaticNodeTypeList<Element>;
+
+template <typename NodeType>
+class StaticNodeTypeList final : public NodeList {
+ public:
+  static StaticNodeTypeList* Adopt(HeapVector<Member<NodeType>>& nodes);
+
+  ~StaticNodeTypeList() override;
+
+  unsigned length() const override;
+
+ private:
+  HeapVector<Member<NodeType>> nodes_;
+};
+```
+
+如果在浏览器中执行下面 JavaScript 代码：
+
+```JavaScript
+const divList = document.querySelectorAll('div')
+divList.length
+```
+
+JavaScript 代码 divList.length，底层调用的是 StaticNodeTypeList<NodeType>::length，[源码如下](https://chromium.googlesource.com/chromium/src/+/refs/tags/90.0.4430.8/third_party/blink/renderer/core/dom/static_node_list.h#69)：
+
+```C++
+template <typename NodeType>
+unsigned StaticNodeTypeList<NodeType>::length() const {
+  return nodes_.size();
+}
+```
+
+JavaScript 数组 
+
+
 
 ## 参考文献
 
