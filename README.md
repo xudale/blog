@@ -45,6 +45,8 @@
 
 [为什么 querySelectorAll 返回的不是 Array?](https://github.com/xudale/blog/blob/master/%E4%B8%BA%E4%BB%80%E4%B9%88%20querySelectorAll%20%E8%BF%94%E5%9B%9E%E7%9A%84%E4%B8%8D%E6%98%AF%20Array%3F.md)
 
+[Chromium 线程与消息循环](https://github.com/xudale/blog/blob/master/chromium%20%E7%BA%BF%E7%A8%8B%E4%B8%8E%E6%B6%88%E6%81%AF%E5%BE%AA%E7%8E%AF.md)
+
 
 
 
