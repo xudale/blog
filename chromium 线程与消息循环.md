@@ -8,7 +8,222 @@ Chromium 与线程相关的类有两个，[Thread](https://chromium.googlesource
 
 ### Thread
 
+Chromium 中，开启一个线程的方法是 [Thread::Start](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.cc#131)
+
+```C++
+bool Thread::Start() {
+  Options options;
+  return StartWithOptions(options);
+}
+```
+
+options 对象表示创建线程需要的一些参数，如线程优先级、栈大小和消息循环等，[声明如下](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.h#76)：
+
+```C++
+struct BASE_EXPORT Options {
+  using MessagePumpFactory =
+      RepeatingCallback<std::unique_ptr<MessagePump>()>;
+
+  Options();
+  Options(MessagePumpType type, size_t size);
+  Options(Options&& other);
+  ~Options();
+
+  // 消息循环的类型，Chromium Thread 类自带消息循环
+  MessagePumpType message_pump_type = MessagePumpType::DEFAULT;
+
+  // Specifies timer slack for thread message loop.
+  TimerSlack timer_slack = TIMER_SLACK_NONE;
+
+  // 线程栈大小
+  size_t stack_size = 0;
+
+  // 线程优先级
+  ThreadPriority priority = ThreadPriority::NORMAL;
+
+  // If false, the thread will not be joined on destruction.
+  bool joinable = true;
+};
+```
+
+Thread::Start 调用了 Thread::StartWithOptions，[Thread::StartWithOptions](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.cc#142) 源码如下：
+
+```C++
+bool Thread::StartWithOptions(const Options& options) {
+  timer_slack_ = options.timer_slack;  
+  // 重点在 MessagePump::Create(type) 创建了消息循环
+  delegate_ = std::make_unique<SequenceManagerThreadDelegate>(
+      options.message_pump_type,
+      BindOnce([](MessagePumpType type) { return MessagePump::Create(type); },
+               options.message_pump_type),
+      options.task_queue_time_domain);
+  {
+    bool success =
+        options.joinable
+            ? PlatformThread::CreateWithPriority(options.stack_size, this,
+                                                 &thread_, options.priority)
+            : PlatformThread::CreateNonJoinableWithPriority(
+                  options.stack_size, this, options.priority);
+  }
+  joinable_ = options.joinable;
+  return true;
+}
+```
+
+
+
+Thread::StartWithOptions 做的还是一线程初始化的工作，多数代码逻辑都与描述线程参数的 options 对象有关，并没有真正创建线程。真正创建操作系统线程在 PlatformThread::CreateWithPriority。
+
+
+
+
 ### PlatformThread
+
+PlatformThread，平台线程，从名字也以看出不同的操作系统有不同的实现。在不同的操作系统下，[PlatformThread 声明](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread.h#121)部分是一致的，源码如下：
+
+```C++
+// A namespace for low-level thread functions.
+class BASE_EXPORT PlatformThread {
+ public:
+  static PlatformThreadHandle CurrentHandle();
+
+  // 让步
+  static void YieldCurrentThread();
+
+  // 睡眠
+  static void Sleep(base::TimeDelta duration);
+
+  // 创建操作系统级别线程
+  static bool CreateWithPriority(size_t stack_size, Delegate* delegate,
+                                 PlatformThreadHandle* thread_handle,
+                                 ThreadPriority priority);
+
+  // Joins with a thread created via the Create function.  
+  static void Join(PlatformThreadHandle thread_handle);
+
+  // Detaches and releases the thread handle
+  static void Detach(PlatformThreadHandle thread_handle);
+}
+```
+
+PlatformThread 类的特点是方法都是静态方法，代码逻辑基本是对操作系统的线程函数包装了一下，不同操作系统有不同的实现。
+
+在 Mac 下，[CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249) 最终是通过调用操作系统的 pthread_create 函数创建了线程，源码如下：
+
+```C++
+// static
+bool PlatformThread::CreateWithPriority(size_t stack_size, Delegate* delegate,
+                                        PlatformThreadHandle* thread_handle,
+                                        ThreadPriority priority) {
+  return CreateThread(stack_size, true /* joinable thread */, delegate,
+                      thread_handle, priority);
+}
+
+bool CreateThread(size_t stack_size,
+                  bool joinable,
+                  PlatformThread::Delegate* delegate,
+                  PlatformThreadHandle* thread_handle,
+                  ThreadPriority priority) {
+
+  pthread_attr_t attributes;
+  pthread_attr_init(&attributes);
+
+  std::unique_ptr<ThreadParams> params(new ThreadParams);
+  params->delegate = delegate;
+  params->joinable = joinable;
+  params->priority = priority;
+
+  pthread_t handle;
+  // 核心代码就这一行，调用操作系统 pthread_create 创建线程
+  int err = pthread_create(&handle, &attributes, ThreadFunc, params.get());
+  bool success = !err;
+  return success;
+}
+```
+
+CreateThread 的核心代码就是调用操作系统的 [pthread_create](https://baike.baidu.com/item/pthread_create/5139072?fr=aladdin) 创建线程。pthread_create 的 4 个参数，handle 表示指向线程标识符的指针，attributes 表示线程属性，ThreadFunc 表示线程运行函数的起始地址。
+
+在 Windows 平台下，[PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_win.cc#289) 归根到底还是调用了 Windows 操作系统的 [CreateThread](https://docs.microsoft.com/zh-cn/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread) 函数创建了线程，源码如下：
+
+```C++
+// static
+bool PlatformThread::CreateWithPriority(size_t stack_size, Delegate* delegate,
+                                        PlatformThreadHandle* thread_handle,
+                                        ThreadPriority priority) {
+  DCHECK(thread_handle);
+  return CreateThreadInternal(stack_size, delegate, thread_handle, priority);
+}
+
+bool CreateThreadInternal(size_t stack_size,
+                          PlatformThread::Delegate* delegate,
+                          PlatformThreadHandle* out_thread_handle,
+                          ThreadPriority priority) {
+  unsigned int flags = 0;
+  if (stack_size > 0) {
+    flags = STACK_SIZE_PARAM_IS_A_RESERVATION;
+#if defined(ARCH_CPU_32_BITS)
+  } else {
+    // The process stack size is increased to give spaces to |RendererMain| in
+    // |chrome/BUILD.gn|, but keep the default stack size of other threads to
+    // 1MB for the address space pressure.
+    flags = STACK_SIZE_PARAM_IS_A_RESERVATION;
+    static BOOL is_wow64 = -1;
+    if (is_wow64 == -1 && !IsWow64Process(GetCurrentProcess(), &is_wow64))
+      is_wow64 = FALSE;
+    // When is_wow64 is set that means we are running on 64-bit Windows and we
+    // get 4 GiB of address space. In that situation we can afford to use 1 MiB
+    // of address space for stacks. When running on 32-bit Windows we only get
+    // 2 GiB of address space so we need to conserve. Typically stack usage on
+    // these threads is only about 100 KiB.
+    if (is_wow64)
+      stack_size = 1024 * 1024;
+    else
+      stack_size = 512 * 1024;
+#endif
+  }
+
+  ThreadParams* params = new ThreadParams;
+  params->delegate = delegate;
+  params->joinable = out_thread_handle != nullptr;
+  params->priority = priority;
+
+  // Using CreateThread here vs _beginthreadex makes thread creation a bit
+  // faster and doesn't require the loader lock to be available.  Our code will
+  // have to work running on CreateThread() threads anyway, since we run code on
+  // the Windows thread pool, etc.  For some background on the difference:
+  // http://www.microsoft.com/msj/1099/win32/win321099.aspx
+  void* thread_handle =
+      ::CreateThread(nullptr, stack_size, ThreadFunc, params, flags, nullptr);
+
+  if (!thread_handle) {
+    DWORD last_error = ::GetLastError();
+
+    switch (last_error) {
+      case ERROR_NOT_ENOUGH_MEMORY:
+      case ERROR_OUTOFMEMORY:
+      case ERROR_COMMITMENT_LIMIT:
+        TerminateBecauseOutOfMemory(stack_size);
+        break;
+
+      default:
+        static auto* last_error_crash_key = debug::AllocateCrashKeyString(
+            "create_thread_last_error", debug::CrashKeySize::Size32);
+        debug::SetCrashKeyString(last_error_crash_key,
+                                 base::NumberToString(last_error));
+        break;
+    }
+
+    delete params;
+    return false;
+  }
+
+  if (out_thread_handle)
+    *out_thread_handle = PlatformThreadHandle(thread_handle);
+  else
+    CloseHandle(thread_handle);
+  return true;
+}
+```
 
 
 
