@@ -68,22 +68,22 @@ bool Thread::StartWithOptions(const Options& options) {
 }
 ```
 
-Thread::StartWithOptions 解析 options 参数，做的主要是一些线程初始化的工作，并没有真正创建线程。真正创建线程的方法是 [CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249)。
+Thread::StartWithOptions 解析 options 参数，做的主要是一些线程初始化的工作，并没有真正创建线程。真正创建线程的方法是 [PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249)。
 
 ### PlatformThread
 
-PlatformThread 的中文含义是平台线程，顾名思义，其在不同的操作系统会有不同的实现，实际也是如此。但 [PlatformThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread.h#121) 的声明在不同操作系统是一样的，源码如下：
+PlatformThread 的中文含义是平台线程，顾名思义，其在不同的操作系统会有不同的实现，实际也是如此。但 [PlatformThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread.h#121) 的声明在不同操作系统是一样的。也就是说 PlatformThread 在不同的操作系统有着相同的接口，不同的实现。PlatformThread 声明部分源码如下：
 
 ```C++
-// A namespace for low-level thread functions.
+// 不同操作系统下接口一致，实现不一致
 class BASE_EXPORT PlatformThread {
  public:
   static PlatformThreadHandle CurrentHandle();
 
-  // 让步
+  // 线程让步
   static void YieldCurrentThread();
 
-  // 睡眠
+  // 线程睡眠
   static void Sleep(base::TimeDelta duration);
 
   // 创建操作系统级别线程
@@ -99,9 +99,9 @@ class BASE_EXPORT PlatformThread {
 }
 ```
 
-PlatformThread 类的特点是方法都是静态方法，代码逻辑基本是对操作系统的线程函数包装了一下，不同操作系统有不同的实现。
+PlatformThread 类的方法基本都是静态方法，代码逻辑大多是对操作系统线程相关函数的包装，不同操作系统的实现不同。本文以 Mac 和 Windows 线程创建函数举例。
 
-在 Mac 下，[CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249) 最终是通过调用操作系统的 pthread_create 函数创建了线程，源码如下：
+在 Mac 下，[PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249) 最终是通过调用 Mac OS 提供的 [pthread_create](https://baike.baidu.com/item/pthread_create/5139072?fr=aladdin) 函数创建了线程，源码如下：
 
 ```C++
 // static
@@ -127,7 +127,7 @@ bool CreateThread(size_t stack_size,
   params->priority = priority;
 
   pthread_t handle;
-  // 核心代码就这一行，调用操作系统 pthread_create 创建线程
+  // 核心代码就这一行，调用 Mac OS 的 pthread_create 创建线程
   int err = pthread_create(&handle, &attributes, ThreadFunc, params.get());
   bool success = !err;
   return success;
