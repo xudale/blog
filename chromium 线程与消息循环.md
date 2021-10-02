@@ -49,7 +49,7 @@ Thread::Start 调用了 [Thread::StartWithOptions](https://chromium.googlesource
 ```C++
 bool Thread::StartWithOptions(const Options& options) {
   timer_slack_ = options.timer_slack;  
-  // 重点在 MessagePump::Create(type) 创建了消息循环
+  // MessagePump::Create(type) 创建了消息循环
   delegate_ = std::make_unique<SequenceManagerThreadDelegate>(
       options.message_pump_type,
       BindOnce([](MessagePumpType type) { return MessagePump::Create(type); },
@@ -68,12 +68,7 @@ bool Thread::StartWithOptions(const Options& options) {
 }
 ```
 
-
-
-Thread::StartWithOptions 做的还是一线程初始化的工作，多数代码逻辑都与描述线程参数的 options 对象有关，并没有真正创建线程。真正创建操作系统线程在 PlatformThread::CreateWithPriority。
-
-
-
+Thread::StartWithOptions 解析 options 参数，做的主要是一些线程初始化的工作，并没有真正创建线程。真正创建线程的方法是 [CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249)。
 
 ### PlatformThread
 
