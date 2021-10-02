@@ -17,22 +17,20 @@ bool Thread::Start() {
 }
 ```
 
-options 对象表示创建线程需要的一些参数，如线程优先级、栈大小和消息循环等，[声明如下](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.h#76)：
+options 对象表示创建线程需要的一些参数，如线程优先级、线程栈大小和消息循环等，[声明如下](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.h#76)：
 
 ```C++
 struct BASE_EXPORT Options {
   using MessagePumpFactory =
       RepeatingCallback<std::unique_ptr<MessagePump>()>;
 
-  Options();
   Options(MessagePumpType type, size_t size);
-  Options(Options&& other);
   ~Options();
 
-  // 消息循环的类型，Chromium Thread 类自带消息循环
+  // 消息循环的类型，不同的操作系统有不同的消循环
+  // Chromium Thread 类自带消息循环
   MessagePumpType message_pump_type = MessagePumpType::DEFAULT;
 
-  // Specifies timer slack for thread message loop.
   TimerSlack timer_slack = TIMER_SLACK_NONE;
 
   // 线程栈大小
@@ -46,7 +44,7 @@ struct BASE_EXPORT Options {
 };
 ```
 
-Thread::Start 调用了 Thread::StartWithOptions，[Thread::StartWithOptions](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.cc#142) 源码如下：
+Thread::Start 调用了 [Thread::StartWithOptions](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.cc#142)，源码如下：
 
 ```C++
 bool Thread::StartWithOptions(const Options& options) {
