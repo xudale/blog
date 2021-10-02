@@ -8,7 +8,7 @@ Chromium 与线程相关的类有两个，[Thread](https://chromium.googlesource
 
 ### Thread
 
-Chromium 中，开启一个线程的方法是 [Thread::Start](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.cc#131)
+在 Chromium 中，开启一个线程的方法是 [Thread::Start](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.cc#131)，源码如下：
 
 ```C++
 bool Thread::Start() {
