@@ -72,7 +72,7 @@ Thread::StartWithOptions 解析 options 参数，做的主要是一些线程初�
 
 ### PlatformThread
 
-PlatformThread，平台线程，从名字也以看出不同的操作系统有不同的实现。在不同的操作系统下，[PlatformThread 声明](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread.h#121)部分是一致的，源码如下：
+PlatformThread 的中文含义是平台线程，顾名思义，其在不同的操作系统会有不同的实现，实际也是如此。但 [PlatformThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread.h#121) 的声明在不同操作系统是一样的，源码如下：
 
 ```C++
 // A namespace for low-level thread functions.
