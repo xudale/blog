@@ -4,7 +4,7 @@ Chromium 源码版本 91.0.4437.3，大约发布于 2021 年春节。
 
 ## Chromium 线程
 
-Chromium 与线程相关的类有两个，[Thread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.h#62) 类和 [PlatformThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread.h#121)。Thread 类是 Chromium 对线程的封装，PlatformThread 类封装了操作系统的线程相关函数，不同的操作系统有不同的实现。Thread 类基于 PlatformThread 类。我们从创建线程的源码开始。
+Chromium 与线程相关的类有两个，[Thread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.h#62) 和 [PlatformThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread.h#121)。Thread 底层调用 PlatformThread 创建线程。PlatformThread 封装了操作系统级别的线程相关 API，在不同的操作系统有不同的实现，但接口保持一致。本文从创建线程的源码开始。
 
 ### Thread
 
@@ -177,6 +177,8 @@ bool CreateThreadInternal(size_t stack_size,
 > PlatformThread 的声明是公共的
 
 > PlatformThread 不同操作系统下有不同的实现，实现的跨平台的线程
+
+
 
 
 ## chromium 消息循环
