@@ -128,15 +128,16 @@ bool CreateThread(size_t stack_size,
 
   pthread_t handle;
   // 核心代码就这一行，调用 Mac OS 的 pthread_create 创建线程
+  // ThreadFunc 内部会开启消息循环
   int err = pthread_create(&handle, &attributes, ThreadFunc, params.get());
   bool success = !err;
   return success;
 }
 ```
 
-CreateThread 的核心代码就是调用操作系统的 [pthread_create](https://baike.baidu.com/item/pthread_create/5139072?fr=aladdin) 创建线程。pthread_create 的 4 个参数，handle 表示指向线程标识符的指针，attributes 表示线程属性，ThreadFunc 表示线程运行函数的起始地址。
+CreateThread 的核心代码是调用 Mac OS 的 [pthread_create](https://baike.baidu.com/item/pthread_create/5139072?fr=aladdin) 创建线程。pthread_create 的 4 个参数解释如下，handle 表示指向线程标识符的指针，attributes 表示线程属性，ThreadFunc 表示线程运行函数的起始地址，params.get() 表示线程运行时的参数。
 
-在 Windows 平台下，[PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_win.cc#289) 归根到底还是调用了 Windows 操作系统的 [CreateThread](https://docs.microsoft.com/zh-cn/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread) 函数创建了线程，源码如下：
+在 Windows 下，[PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_win.cc#289) 归根到底还是调用了 Windows 操作系统的 [CreateThread](https://docs.microsoft.com/zh-cn/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread) 函数创建了线程，源码如下：
 
 ```C++
 // static
@@ -146,7 +147,11 @@ bool PlatformThread::CreateWithPriority(size_t stack_size, Delegate* delegate,
   DCHECK(thread_handle);
   return CreateThreadInternal(stack_size, delegate, thread_handle, priority);
 }
-
+// 对比上文 Mac OS 的实现可以看出，PlatformThread 的接口在不同平台是一样的
+// 如前面的 PlatformThread::CreateWithPriority，但实现不一样
+// 如在 Mac OS 的实现中 PlatformThread::CreateWithPriority 调用的是
+// CreateThread。Windows 平台下 PlatformThread::CreateWithPriority 调用的是 
+// CreateThreadInternal
 bool CreateThreadInternal(size_t stack_size,
                           PlatformThread::Delegate* delegate,
                           PlatformThreadHandle* out_thread_handle,
@@ -156,7 +161,7 @@ bool CreateThreadInternal(size_t stack_size,
   params->delegate = delegate;
   params->joinable = out_thread_handle != nullptr;
   params->priority = priority;
-  // 核心代码就这一行，调用操作系统 CreateThread 创建线程
+  // 核心代码就这一行，调用 Windows 的 CreateThread 创建线程
   void* thread_handle =
       ::CreateThread(nullptr, stack_size, ThreadFunc, params, flags, nullptr);
   if (out_thread_handle)
@@ -167,11 +172,9 @@ bool CreateThreadInternal(size_t stack_size,
 }
 ```
 
-> PlatformThread 的声明是公共的
+> PlatformThread 类在不同平台下接口一致，实现不一致
 
-> PlatformThread 不同操作系统下有不同的实现，实现的跨平台的线程
-
-
+> Thread 的实现依赖 PlatformThread，所以 Thread 类是兼容不同 OS 的线程类
 
 
 ## chromium 消息循环
