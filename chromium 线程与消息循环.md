@@ -51,24 +51,24 @@ bool Thread::StartWithOptions(const Options& options) {
   timer_slack_ = options.timer_slack;  
   // MessagePump::Create(type) 创建了消息循环
   delegate_ = std::make_unique<SequenceManagerThreadDelegate>(
-      options.message_pump_type,
-      BindOnce([](MessagePumpType type) { return MessagePump::Create(type); },
-               options.message_pump_type),
-      options.task_queue_time_domain);
+    options.message_pump_type,
+    BindOnce([](MessagePumpType type) { return MessagePump::Create(type); },
+             options.message_pump_type),
+    options.task_queue_time_domain);
   {
     bool success =
-        options.joinable
-            ? PlatformThread::CreateWithPriority(options.stack_size, this,
-                                                 &thread_, options.priority)
-            : PlatformThread::CreateNonJoinableWithPriority(
-                  options.stack_size, this, options.priority);
+      options.joinable
+        ? PlatformThread::CreateWithPriority(options.stack_size, this,
+                                             &thread_, options.priority)
+        : PlatformThread::CreateNonJoinableWithPriority(
+          options.stack_size, this, options.priority);
   }
   joinable_ = options.joinable;
   return true;
 }
 ```
 
-Thread::StartWithOptions 解析 options 参数，做的主要是一些线程初始化的工作，并没有真正创建线程。真正创建线程的方法是 [PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249)。
+Thread::StartWithOptions 解析 options 参数，做的主要是一些线程初始化的工作，并没有真正创建线程。真正创建线程的方法是 [PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249)，见下节。
 
 ### PlatformThread
 
@@ -99,9 +99,9 @@ class BASE_EXPORT PlatformThread {
 }
 ```
 
-PlatformThread 类的方法基本都是静态方法，代码逻辑大多是对操作系统线程相关函数的包装，不同操作系统的实现不同。本文以 Mac 和 Windows 线程创建函数举例。
+PlatformThread 类的方法基本都是静态方法，代码逻辑大多是对操作系统线程相关函数的包装，不同操作系统的实现不同。本文以 Mac 和 Windows 线程创建函数为例。
 
-在 Mac 下，[PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249) 最终是通过调用 Mac OS 提供的 [pthread_create](https://baike.baidu.com/item/pthread_create/5139072?fr=aladdin) 函数创建了线程，源码如下：
+在 Mac 下，[PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_posix.cc#249) 最终是通过调用 Mac OS 的 [pthread_create](https://baike.baidu.com/item/pthread_create/5139072?fr=aladdin) 函数创建线程，源码如下：
 
 ```C++
 // static
@@ -127,8 +127,8 @@ bool CreateThread(size_t stack_size,
   params->priority = priority;
 
   pthread_t handle;
-  // 核心代码就这一行，调用 Mac OS 的 pthread_create 创建线程
-  // ThreadFunc 内部会开启消息循环
+  // 核心代码在此，调用 Mac OS 的 pthread_create 创建线程
+  // ThreadFunc 函数内部会开始消息循环
   int err = pthread_create(&handle, &attributes, ThreadFunc, params.get());
   bool success = !err;
   return success;
@@ -137,7 +137,7 @@ bool CreateThread(size_t stack_size,
 
 CreateThread 的核心代码是调用 Mac OS 的 [pthread_create](https://baike.baidu.com/item/pthread_create/5139072?fr=aladdin) 创建线程。pthread_create 的 4 个参数解释如下，handle 表示指向线程标识符的指针，attributes 表示线程属性，ThreadFunc 表示线程运行函数的起始地址，params.get() 表示线程运行时的参数。
 
-在 Windows 下，[PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_win.cc#289) 归根到底还是调用了 Windows 操作系统的 [CreateThread](https://docs.microsoft.com/zh-cn/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread) 函数创建了线程，源码如下：
+在 Windows 下，[PlatformThread::CreateWithPriority](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/platform_thread_win.cc#289) 归根到底是调用了 Windows 操作系统的 [CreateThread](https://docs.microsoft.com/zh-cn/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread) 函数创建线程，源码如下：
 
 ```C++
 // static
@@ -161,9 +161,9 @@ bool CreateThreadInternal(size_t stack_size,
   params->delegate = delegate;
   params->joinable = out_thread_handle != nullptr;
   params->priority = priority;
-  // 核心代码就这一行，调用 Windows 的 CreateThread 创建线程
+  // 核心代码在此，调用 Windows 的 CreateThread 创建线程
   void* thread_handle =
-      ::CreateThread(nullptr, stack_size, ThreadFunc, params, flags, nullptr);
+    ::CreateThread(nullptr, stack_size, ThreadFunc, params, flags, nullptr);
   if (out_thread_handle)
     *out_thread_handle = PlatformThreadHandle(thread_handle);
   else
@@ -172,7 +172,7 @@ bool CreateThreadInternal(size_t stack_size,
 }
 ```
 
-CreateThread 是 Windows 平台创建线程的函数，接收 5 个参数。nullptr 既然已经是空就不谈了，stack_size 表示线程初始时的栈大小，ThreadFunc 表示线程入口函数的地址，params 表示线程的参数，flags 表示线程的属性。Windows 平台 CreateThread 接收的参数与 Mac OS pthread_create 接收的参数基本类似。
+CreateThread 是 Windows 平台创建线程的函数，接收 5 个参数。nullptr 既然已是空我们就不谈了，stack_size 表示线程初始时的栈大小，ThreadFunc 表示线程运行函数的起始地址，params 表示线程的参数，flags 表示线程的属性。Windows 平台 CreateThread 接收的参数与 Mac OS pthread_create 接收的参数大体类似。
 
 > PlatformThread 类在不同操作系统下接口一致，实现不一致
 
@@ -188,10 +188,10 @@ bool Thread::StartWithOptions(const Options& options) {
   timer_slack_ = options.timer_slack;  
   // 重点在 MessagePump::Create(type) 消息泵创建这里
   delegate_ = std::make_unique<SequenceManagerThreadDelegate>(
-      options.message_pump_type,
-      BindOnce([](MessagePumpType type) { return MessagePump::Create(type); },
-               options.message_pump_type),
-      options.task_queue_time_domain);
+    options.message_pump_type,
+    BindOnce([](MessagePumpType type) { return MessagePump::Create(type); },
+            options.message_pump_type),
+    options.task_queue_time_domain);
   // 后面略
 }
 ```
