@@ -181,12 +181,12 @@ CreateThread 是 Windows 平台创建线程的函数，接收 5 个参数。null
 
 ## chromium 消息循环
 
-从前方的 [Thread::StartWithOptions](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.cc#142) 方法中，可以看到 Thread 类是自带消息循环的。
+从上文的 [Thread::StartWithOptions](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/threading/thread.cc#142) 方法中，可以看到 Thread 类是自带消息循环的。
 
 ```C++
 bool Thread::StartWithOptions(const Options& options) {
   timer_slack_ = options.timer_slack;  
-  // 重点在 MessagePump::Create(type) 创建了消息循环
+  // 重点在 MessagePump::Create(type) 消息泵创建这里
   delegate_ = std::make_unique<SequenceManagerThreadDelegate>(
       options.message_pump_type,
       BindOnce([](MessagePumpType type) { return MessagePump::Create(type); },
@@ -196,23 +196,23 @@ bool Thread::StartWithOptions(const Options& options) {
 }
 ```
 
-[MessagePump::Create](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump.cc#44) 方法创建了一个消息循环，代码如下：
+[MessagePump::Create](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump.cc#44) 方法创建了一个消息循环对象，代码如下：
 
 
 ```C++
-// static
+// 消息循环的类型有多种，这里删除了很多代码
 std::unique_ptr<MessagePump> MessagePump::Create(MessagePumpType type) {
   switch (type) {
     case MessagePumpType::UI:
       return message_pump_for_ui_factory_();
-    // 这个分支
+    // 本文代码走向这个分支，默认的消息循环类型
     case MessagePumpType::DEFAULT:
       return std::make_unique<MessagePumpDefault>();
   }
 }
 ```
 
-MessagePump::Create 创建消息循环后，消息循环开始运行，[源码如下](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_default.cc#31)：
+MessagePump::Create 创建消息循环后，线程入口函数，也就是 Mac OS 的 pthread_create 和 Windows 的 CreateThread 接收的线程入口函数 ThreadFunc，开始运行消息循环，消息循环[源码如下](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_default.cc#31)：
 
 ```C++
 void MessagePumpDefault::Run(Delegate* delegate) {
@@ -244,12 +244,12 @@ void MessagePumpDefault::Run(Delegate* delegate) {
 }
 ```
 
-被 for (;;) 包裹的代码块就是前端所说的消息循环，在消息循环中处理当前任务。消息循环是一个死循环，但消息循环所处的线程大多数时间是休眠状态。笔者实测，只有发生了鼠标点击/滚动/键盘输入等事件时，消息循环中的代码才会执行。
+被 for (;;) 死循环包裹的代码块是消息循环，Chromium 在消息循环中处理当前的各种任务。消息循环是一个死循环，但消息循环所处的线程大多数时间都不处于运行状态。笔者亲测，只有发生了鼠标点击/滚动/键盘输入等事件时，消息循环中的代码才会执行。
 
 
 ## 总结
 
-Chromium 源码中的 Thread 类是一个跨平台，自带消息循环的类。
+Chromium 中的 Thread 类是一个可以跨平台创建线程，并自带消息循环的类。
 
 Chromium 消息循环是一个死循环，但消息循环所处的线程多数情况下并不处于运行状态。
 
