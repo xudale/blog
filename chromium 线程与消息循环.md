@@ -172,9 +172,11 @@ bool CreateThreadInternal(size_t stack_size,
 }
 ```
 
-> PlatformThread 类在不同平台下接口一致，实现不一致
+CreateThread 是 Windows 平台创建线程的函数，接收 5 个参数。nullptr 既然已经是空就不谈了，stack_size 表示线程初始时的栈大小，ThreadFunc 表示线程入口函数的地址，params 表示线程的参数，flags 表示线程的属性。Windows 平台 CreateThread 接收的参数与 Mac OS pthread_create 接收的参数基本类似。
 
-> Thread 的实现依赖 PlatformThread，所以 Thread 类是兼容不同 OS 的线程类
+> PlatformThread 类在不同操作系统下接口一致，实现不一致
+
+> Thread 类的实现依赖 PlatformThread，PlatformThread 已经抹平了不同操作系统线程操作的差异，所以 Thread 类是跨平台的线程类
 
 
 ## chromium 消息循环
