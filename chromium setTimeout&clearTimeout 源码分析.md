@@ -6,7 +6,81 @@ setTimeout 函数相关的源码量巨大，涉及线程、消息循环、任务
 
 ## setTimeout
 
+本文绝大部分篇幅将分析以下 JavaScript 代码。
+
+```JavaScript
+setTimeout(_ => {
+  console.log('test')
+}, 100)
+```
+
 ### 生成任务
+
+setTimeout 调用的是 Blink 的 [WindowOrWorkerGlobalScope::setTimeout](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/window_or_worker_global_scope.cc#136)，源码如下：
+
+```C++
+int WindowOrWorkerGlobalScope::setTimeout(
+    ScriptState* script_state,
+    EventTarget& event_target,
+    V8Function* handler,
+    int timeout,
+    const HeapVector<ScriptValue>& arguments) {
+  ExecutionContext* execution_context = event_target.GetExecutionContext();
+  auto* action = MakeGarbageCollected<ScheduledAction>(
+      script_state, execution_context, handler, arguments);
+  return DOMTimer::Install(execution_context, action,
+                           base::TimeDelta::FromMilliseconds(timeout), true);
+}
+```
+
+handler 参数是 setTimeout 定时器到期的回调函数，timeout 表示延迟时间，通过这两个参数，生成 action，最后调用 DOMTimer::Install。
+
+DOMTimer::Install 会调用 [DOMTimerCoordinator::InstallNewTimeout](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer_coordinator.cc#14)，向定时器哈希表插入一个定时器。
+
+
+```C++
+using TimeoutMap = HeapHashMap<int, Member<DOMTimer>>;
+TimeoutMap timers_;
+
+int DOMTimerCoordinator::InstallNewTimeout(ExecutionContext* context,
+                                           ScheduledAction* action,
+                                           base::TimeDelta timeout,
+                                           bool single_shot) {
+  // 生成 setTimeout 的返回值
+  int timeout_id = NextID();
+  // timers 是一个哈希表，key 是 timeout_id，值是定时器对象
+  timers_.insert(timeout_id,
+                 MakeGarbageCollected<DOMTimer>(context, action, timeout,
+                                                single_shot, timeout_id));
+  // 这里是 setTimeout 的返回值
+  return timeout_id;
+}
+```
+
+timeout_id 是 setTimeout 的返回值，它是由 [NextID](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer_coordinator.cc#42) 生成的。
+
+```C++
+int circular_sequential_id_ = 0;
+
+int DOMTimerCoordinator::NextID() {
+  while (true) {
+    ++circular_sequential_id_;
+    if (circular_sequential_id_ <= 0)
+      circular_sequential_id_ = 1;
+    // timers_ 是定时器哈希表，如果哈希表已经有 key 为当前
+    // circular_sequential_id_ 的定时器，继续死循环
+    // 如果没有，返回当前 circular_sequential_id_
+    if (!timers_.Contains(circular_sequential_id_))
+      return circular_sequential_id_;
+  }
+}
+```
+
+NextID 函数的核心代码就一行：++circular_sequential_id_，circular_sequential_id_ 是 DOMTimerCoordinator 的私有属性。可以看到，多次调用 setTimeout，它的返回值是越来越大的，如下图。
+
+![setTimeout](https://raw.githubusercontent.com/xudale/blog/master/assets/setTimeout.png)
+
+
 
 ### 进入延迟任务队列
 
@@ -24,6 +98,8 @@ setTimeout 函数相关的源码量巨大，涉及线程、消息循环、任务
 ### 线程睡眠 100 ms
 
 ### 唤醒线程，继续消息循环
+
+### 为什么 setTimeout 不准确
 
 ## clearTimeout
 
