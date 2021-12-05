@@ -82,7 +82,7 @@ NextID 函数的核心代码就一行：++circular_sequential_id_，circular_seq
 
 timers_.insert() 中的 timers_ 是一个哈希表，存放所有的定时器对象。key 是 定时器的返回值 timeout_id， value 是定时器对象 DOMTimer。还要注意 timers_ 存放的是定时器对象，与任务无关。
 
-> 所以的定时器对象 DOMTimer，都存在哈希表 timers_ 中
+> 所有的定时器对象 DOMTimer，都存在哈希表 timers_ 中
 
 定时器构造函数，[DOMTimer::DOMTimer](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer.cc#71)，源码如下：
 
@@ -198,13 +198,62 @@ void TimerBase::SetNextFireTime(base::TimeTicks now, base::TimeDelta delay) {
 - 通过 DOMTimer 对象，生成 task，最后向任务运行器 web_task_runner_，投递 task，即 web_task_runner_->PostDelayedTask
 
 
-### 进入延迟任务队列
+### 加入延迟任务队列
+
+web_task_runner_->PostDelayedTask 的底层调用的是 [TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#396)
+
+```C++
+void TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread(
+  Task pending_task,
+  TimeTicks now,
+  bool notify_task_annotator) {
+  // pending_task 表示任务
+  // delayed_incoming_queue 是延迟任务队列
+  // 向延迟任务队列添加任务
+  main_thread_only().delayed_incoming_queue.push(std::move(pending_task));
+  LazyNow lazy_now(now);
+  UpdateDelayedWakeUp(&lazy_now);
+  TraceQueueSize();
+}
+```
+
+main_thread_only() 返回 [MainThreadOnly](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.h#344) 对象，声明如下：
+
+```C++
+struct MainThreadOnly {
+  MainThreadOnly(TaskQueueImpl* task_queue, TimeDomain* time_domain);
+  ~MainThreadOnly();
+  // Another copy of TimeDomain for lock-free access from the main thread.
+  // See description inside struct AnyThread for details.
+  TimeDomain* time_domain;
+  std::unique_ptr<WorkQueue> delayed_work_queue;
+  std::unique_ptr<WorkQueue> immediate_work_queue;
+  // 存放所以延迟任务
+  DelayedIncomingQueue delayed_incoming_queue;
+  ObserverList<TaskObserver>::Unchecked task_observers;
+  base::internal::HeapHandle heap_handle;
+  EnqueueOrder current_fence;
+}
+```
+
+MainThreadOnly 对象有很多任务队列，TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread 的核心逻辑，是向 MainThreadOnly 对象的延迟任务队列 delayed_incoming_queue，提交一次任务。delayed_incoming_queue 的底层是最小堆，为了便于理解，本文将延迟队列 delayed_incoming_queue 当优先级队列看待，延迟时间最小的任务，优先级最高。事实上 delayed_incoming_queue 的方法，和 C++ 优先队列 priority_queue 的主要方法基本一样。下面摘自百度百科：
+
+> 普通的队列是一种先进先出的数据结构，元素在队列尾追加，而从队列头删除。在优先队列中，元素被赋予优先级。当访问元素时，具有最高优先级的元素最先删除。优先队列具有最高级先出 （first in, largest out）的行为特征。通常采用堆数据结构来实现。
+
+对于优先队列，本文只需要了解 3 个方法，以下为 C++ 优先队列方法的说明，适用于本文：
+
+- top 访问队头元素，也就是访问队列中，延迟时间最小的任务
+- push 插入元素到队尾 (并排序)
+- pop 弹出队头元素
+
+因为 JavaScript 没有优先队列，所以这里强调一个 top 和 pop 方法。top 只是访问队头元素，并不会从优先队列中弹出队头元素，pop 弹出队头元素。
+
+既然已经知道 delayed_incoming_queue 是一个优先队列，那么很容易看出 main_thread_only().delayed_incoming_queue.push(std::move(pending_task)) 的作用是向优先队列加入一个 task。
 
 
 
 
-
-### (可能)进入唤醒任务队列
+### (可能)加入唤醒任务队列
 
 ### 调用操作系统的定时器函数
 
