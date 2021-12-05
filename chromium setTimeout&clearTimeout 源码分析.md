@@ -6,7 +6,7 @@ setTimeout 函数相关的源码量巨大，涉及线程、消息循环、任务
 
 ## setTimeout
 
-本文绝大部分篇幅将分析以下 JavaScript 代码。
+本文绝大部分篇幅只分析以下 JavaScript 代码。
 
 ```JavaScript
 setTimeout(_ => {
@@ -33,7 +33,7 @@ int WindowOrWorkerGlobalScope::setTimeout(
 }
 ```
 
-handler 参数是 setTimeout 定时器到期的回调函数，timeout 表示延迟时间，通过这两个参数，生成 action，最后调用 DOMTimer::Install。
+handler 参数是 setTimeout 定时器到期的回调函数，timeout 表示延迟时间，通过这两个参数，生成 action，最后调用 [DOMTimer::Install](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer.cc#53)。
 
 DOMTimer::Install 会调用 [DOMTimerCoordinator::InstallNewTimeout](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer_coordinator.cc#14)，向定时器哈希表插入一个定时器。
 
@@ -80,6 +80,9 @@ NextID 函数的核心代码就一行：++circular_sequential_id_，circular_seq
 
 ![setTimeout](https://raw.githubusercontent.com/xudale/blog/master/assets/setTimeout.png)
 
+timers_.insert() 中的 timers_ 是一个哈希表，存放所有的定时器对象。key 是 定时器的返回值 timeout_id， value 是定时器对象 DOMTimer。还要注意 timers_ 存放的是定时器对象，与任务无关。
+
+> 所以的定时器对象 DOMTimer，都存在哈希表 timers_ 中
 
 
 ### 进入延迟任务队列
