@@ -191,14 +191,14 @@ void TimerBase::SetNextFireTime(base::TimeTicks now, base::TimeDelta delay) {
 }
 ```
 
-总结下本小节主要内容：
+本小节总结：
 
 - 通过 setTimeout 的参数，生成定时器对象 DOMTimer，并将新生成的 DOMTimer 插入哈希表 timers_ 中
 - 通过 setTimeout 的延迟时间，找到合适的任务运行器，存入 web_task_runner_
 - 通过 DOMTimer 对象，生成 task，最后向任务运行器 web_task_runner_，投递 task，即 web_task_runner_->PostDelayedTask
 
 
-### 加入延迟任务队列
+### 插入延迟任务队列
 
 web_task_runner_->PostDelayedTask 的底层调用的是 [TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#396)
 
@@ -250,10 +250,101 @@ MainThreadOnly 对象有很多任务队列，TaskQueueImpl::PushOntoDelayedIncom
 
 既然已经知道 delayed_incoming_queue 是一个优先队列，那么很容易看出 main_thread_only().delayed_incoming_queue.push(std::move(pending_task)) 的作用是向优先队列加入一个 task。
 
+本小节总结：
+
+- Chromium 有延时任务队列 delayed_incoming_queue，存放延时任务
+- 延时任务队列类似于 C++ 的优先队列，延时最小的任务，优先级最高
+- 每一个延时任务都会插入延时任务队列
 
 
+### (可能)插入唤醒任务队列
 
-### (可能)加入唤醒任务队列
+从上文代码继续往下看，执行 main_thread_only().delayed_incoming_queue.push 方法，延时任务被插入到延时任务队列后，接着调用了 [UpdateDelayedWakeUp](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#1124)，源码如下：
+
+```C++
+void TaskQueueImpl::UpdateDelayedWakeUp(LazyNow* lazy_now) {
+  return UpdateDelayedWakeUpImpl(lazy_now, GetNextScheduledWakeUpImpl());
+}
+```
+
+UpdateDelayedWakeUp 的功能是获取线程唤醒时间，想像这样一个场景，假如用户 3 次调用 setTimeout，延迟时间分别是 700ms，100ms，400ms。此时延迟任务队列中会存在 3 个任务，这 3 个任务中，明显延迟时间为 100ms 的任务应该最先执行，其优先级最高，其次才是延迟时间为 400ms 和 700ms 的任务。所以应该在 100ms 后唤醒线程。
+
+UpdateDelayedWakeUp 先调用的是 [GetNextScheduledWakeUpImpl](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#546)，源码如下：
+
+```C++
+Optional<DelayedWakeUp> TaskQueueImpl::GetNextScheduledWakeUpImpl() {
+  // Note we don't scheduled a wake-up for disabled queues.
+  if (main_thread_only().delayed_incoming_queue.empty() || !IsQueueEnabled())
+    return nullopt;
+  // High resolution is needed if the queue contains high resolution tasks and
+  // has a priority index <= kNormalPriority (precise execution time is
+  // unnecessary for a low priority queue).
+  WakeUpResolution resolution =
+      has_pending_high_resolution_tasks() &&
+              GetQueuePriority() <= TaskQueue::QueuePriority::kNormalPriority
+          ? WakeUpResolution::kHigh
+          : WakeUpResolution::kLow;
+  // 从优先队列中，获取延迟时间最短的任务
+  const auto& top_task = main_thread_only().delayed_incoming_queue.top();
+  return DelayedWakeUp{top_task.delayed_run_time, top_task.sequence_num,
+                       resolution};
+}
+```
+
+GetNextScheduledWakeUpImpl 的功能是生成一个唤醒任务，主要逻辑是读取延迟任务队列的队头，得到延迟任务队列中延迟时间最小的任务 top_task，以 top_task 的延迟时间 delayed_run_time，返回一个延迟任务 DelayedWakeUp。
+
+得到唤醒任务后，调用 [UpdateDelayedWakeUpImpl](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#1128)，源码如下：
+
+
+```C++
+void TaskQueueImpl::UpdateDelayedWakeUpImpl(LazyNow* lazy_now,
+                                            Optional<DelayedWakeUp> wake_up) {
+  // 如果新的唤醒时间和老的唤醒时间一样，则不处理
+  if (main_thread_only().scheduled_wake_up == wake_up)
+    return;
+  main_thread_only().time_domain->SetNextWakeUpForQueue(this, wake_up,
+                                                        lazy_now);
+}
+```
+
+UpdateDelayedWakeUpImpl 先判断新的唤醒时间 wake_up，和之前的唤醒时间 scheduled_wake_up 是否相同，如果相同，则返回，不会变更任务唤醒队列。如果不同则调用 [SetNextWakeUpForQueue](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/time_domain.cc#56)，源码如下：
+
+```C++
+void TimeDomain::SetNextWakeUpForQueue(
+    internal::TaskQueueImpl* queue,
+    Optional<internal::DelayedWakeUp> wake_up,
+    LazyNow* lazy_now) {
+  if (wake_up) {
+    delayed_wake_up_queue_.insert({wake_up.value(), queue});
+  } 
+
+  if (*new_wake_up <= lazy_now->Now()) {
+    RequestDoWork();
+  } else {
+    SetNextDelayedDoWork(lazy_now, *new_wake_up);
+  }
+}
+
+```
+
+SetNextWakeUpForQueue 的功能是向唤醒队列 delayed_wake_up_queue_ 插入唤醒任务。
+
+本小节的标题(可能)插入唤醒任务队列，之所以加上”可能“二字，是因为如果延迟任务队列已经有延迟时间很短的任务，比如延迟任务队列有延迟时间为 700ms 和 100ms 的两个任务，那么当调用以下代码：
+
+```JavaScript
+setTimeout(_ => {}, 400)
+```
+
+会向延迟任务队列加入一个延迟时间为 400ms 的任务，但此时延迟任务队列的队头依然是延迟时间为 100ms 的任务。延迟时间为 400ms 的任务只会进入延迟任务队列，不会进入唤醒队列。此时的唤醒队列只有一个任务：延迟时间为 100ms 的任务。
+
+打个比方，如果延迟任务队列保存的是丐帮全部成员，那么唤醒任务队列保存的就是汪剑通、乔峰、洪七公和黄蓉这些当过帮主的人。唤醒任务队列是从延迟任务队列中优中选优，延迟任务队列的每一任队头，都曾经是唤醒任务队列的一员。
+
+本小节总结：
+
+- Chromium 有唤醒任务队列，记录下次唤醒线程的时间
+- 唤醒任务队列保存的是延迟任务队列的历任队头
+- 每一个延迟任务都会插入延迟任务队列，但只有延迟任务队列的队头，才会插入唤醒任务队列
+
 
 ### 调用操作系统的定时器函数
 
