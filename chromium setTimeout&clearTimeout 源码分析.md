@@ -84,8 +84,125 @@ timers_.insert() 中的 timers_ 是一个哈希表，存放所有的定时器对
 
 > 所以的定时器对象 DOMTimer，都存在哈希表 timers_ 中
 
+定时器构造函数，[DOMTimer::DOMTimer](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer.cc#71)，源码如下：
+
+```C++
+DOMTimer::DOMTimer(ExecutionContext* context,
+                   ScheduledAction* action,
+                   base::TimeDelta timeout,
+                   bool single_shot,
+                   int timeout_id)
+    : ExecutionContextLifecycleObserver(context),
+      TimerBase(nullptr),
+      timeout_id_(timeout_id),
+      // Step 9:
+      nesting_level_(context->Timers()->TimerNestingLevel()),
+      action_(action) {
+
+  // 获取任务类型
+  TaskType task_type;
+  if (timeout.is_zero()) {
+    task_type = TaskType::kJavascriptTimerImmediate;
+  } else if (nesting_level_ >= kMaxTimerNestingLevel) {
+    task_type = TaskType::kJavascriptTimerDelayedHighNesting;
+  } else {
+    task_type = TaskType::kJavascriptTimerDelayedLowNesting;
+  }
+  MoveToNewTaskRunner(context->GetTaskRunner(task_type));
+  // Clamping up to 1ms for historical reasons crbug.com/402694.
+  timeout = std::max(timeout, base::TimeDelta::FromMilliseconds(1));
+  if (single_shot)
+    StartOneShot(timeout, FROM_HERE);
+  else
+    StartRepeating(timeout, FROM_HERE);
+}
+```
+
+参数 action 是一个包含定时器延时处理函数和延时时间的对象，timeout 表示延时时间，因为 setTimeout 是单次触发，所以 single_shot 为 true，timeout_id 是定时器的返回值。
+
+DOMTimer::DOMTimer 的逻辑分为两部分。首先通过定时器的延时时间，获取任务类型 task_type。本文示例代码的 task_type 是 TaskType::kJavascriptTimerDelayedLowNesting。通过 MoveToNewTaskRunner(context->GetTaskRunner(task_type)) 来获取相应的任务运行器，存在 web_task_runner_ 中。[TimerBase::MoveToNewTaskRunner](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/platform/timer.cc#81) 源码如下：
+
+```C++
+void TimerBase::MoveToNewTaskRunner(
+    scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
+  // If the underlying task runner stays the same, ignore it.
+  if (web_task_runner_ == task_runner) {
+    return;
+  }
+  bool active = IsActive();
+  weak_ptr_factory_.InvalidateWeakPtrs();
+  web_task_runner_ = std::move(task_runner);
+}
+```
+
+前文提到通过任务类型，找到相应的任务运行器。任务类型 [TaskType](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/public/platform/task_type.h#19) 是个枚举类型，源码如下：
+
+```C++
+enum class TaskType : unsigned char {
+  kDeprecatedNone = 0,
+
+  kDOMManipulation = 1,
+
+  kUserInteraction = 2,
+
+  kMicrotask = 9,
+
+  kJavascriptTimerImmediate = 72,
+
+  kJavascriptTimerDelayedLowNesting = 73,
+
+  kJavascriptTimerDelayedHighNesting = 10,
+
+  kRemoteEvent = 11,
+
+  kWebSocket = 12,
+
+  kPostedMessage = 13,
+
+  kUnshippedPortMessage = 14,
+
+  kFileReading = 15,
+
+  kWebGL = 20,
+
+  kIdleTask = 21,
+
+  kMiscPlatformAPI = 22,
+}
+```
+
+从 TaskType 的声明及 TimerBase::MoveToNewTaskRunner 源码可以看出，浏览器中的任务有多种类型，不同类型的任务，放在不同地方。
+
+> 浏览器中的任务有多种类型，不同的类型的任务，放在不同的队列里。比如因为用户点击事件引起的任务，和 setTimeout 引起的任务，就在不同的队列中
+
+找到任务运行器 web_task_runner_ 后，在 StartOneShot 一路追下去，最终在 [TimerBase::SetNextFireTime](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/platform/timer.cc#106)，调用 web_task_runner_->PostDelayedTask 提交了一次延迟任务，PostDelayedTask 第 2 个参数 BindTimerClosure(weak_ptr_factory_.GetWeakPtr() 是一个任务对象，包含 setTimeout 的回调函数，delay 表示延迟时间。
+
+```C++
+void TimerBase::SetNextFireTime(base::TimeTicks now, base::TimeDelta delay) {
+  base::TimeTicks new_time = now + delay;
+  if (next_fire_time_ != new_time) {
+    next_fire_time_ = new_time;
+    // Cancel any previously posted task.
+    weak_ptr_factory_.InvalidateWeakPtrs();
+    // 提交一次延迟任务
+    web_task_runner_->PostDelayedTask(
+        location_, BindTimerClosure(weak_ptr_factory_.GetWeakPtr()), delay);
+  }
+}
+```
+
+总结下本小节主要内容：
+
+- 通过 setTimeout 的参数，生成定时器对象 DOMTimer，并将新生成的 DOMTimer 插入哈希表 timers_ 中
+- 通过 setTimeout 的延迟时间，找到合适的任务运行器，存入 web_task_runner_
+- 通过 DOMTimer 对象，生成 task，最后向任务运行器 web_task_runner_，投递 task，即 web_task_runner_->PostDelayedTask
+
 
 ### 进入延迟任务队列
+
+
+
+
 
 ### (可能)进入唤醒任务队列
 
