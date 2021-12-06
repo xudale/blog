@@ -348,14 +348,113 @@ setTimeout(_ => {}, 400)
 
 ### 调用操作系统的定时器函数
 
+SetNextDelayedDoWork 调用了消息泵(MessagePump)类的 [ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump.h#219)，不同的操作系统，定时唤醒线程的方法肯定是不一样的，笔者的电脑是 Mac，所以先从 Mac 开始。笔者在 Mac 下打过 log，因为没有 Windows 和 Androd，所以 Windows 和 Android 部分的操作系统相关代码，只是看过，没有真机跑过。
+
 #### Mac
+
+Mac 下调用的是 [MessagePumpCFRunLoopBase::ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_mac.mm#172)，源码如下：
+
+```C++
+// Must be called on the run loop thread.
+void MessagePumpCFRunLoopBase::ScheduleDelayedWork(
+  const TimeTicks& delayed_work_time) {
+  ScheduleDelayedWorkImpl(delayed_work_time - TimeTicks::Now());
+}
+
+void MessagePumpCFRunLoopBase::ScheduleDelayedWorkImpl(TimeDelta delta) {
+  // The tolerance needs to be set before the fire date or it may be ignored.
+  CFRunLoopTimerSetNextFireDate(
+      delayed_work_timer_, CFAbsoluteTimeGetCurrent() + delta.InSecondsF());
+}
+```
+
+ScheduleDelayedWork 和 ScheduleDelayedWorkImpl 的参数都是延迟时间，只是格式不一样。ScheduleDelayedWork 的参数 delayed_work_time 表示的是延迟时间的绝对数值，ScheduleDelayedWorkImpl 的参数 delta 表示的是延迟时间距离当前时间的数值。ScheduleDelayedWorkImpl 调用 Mac 操作系统的函数 CFRunLoopTimerSetNextFireDate，因为 setTimeout 的第二个参数是 100，所以 CFRunLoopTimerSetNextFireDate 的作用是在 100 ms 后，唤醒当前线程，继续消息循环。以下摘自[苹果官方文档](https://developer.apple.com/documentation/corefoundation/1542501-cfrunlooptimersetnextfiredate)：
+
+![CFRunLoopTimerSetNextFireDate](https://raw.githubusercontent.com/xudale/blog/master/assets/CFRunLoopTimerSetNextFireDate.png)
 
 #### Windows
 
+Windows 操作系统下调用的是 [MessagePumpForUI::ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_win.cc#133)，源码如下：
+
+
+```C++
+void MessagePumpForUI::ScheduleDelayedWork(const TimeTicks& delayed_work_time) {
+  if (in_native_loop_ && !work_scheduled_) {
+    // TODO(gab): Consider passing a NextWorkInfo object to ScheduleDelayedWork
+    // to take advantage of |recent_now| here too.
+    ScheduleNativeTimer({delayed_work_time, TimeTicks::Now()});
+  }
+}
+
+void MessagePumpForUI::ScheduleNativeTimer(
+    Delegate::NextWorkInfo next_work_info) {
+  UINT delay_msec = strict_cast<UINT>(GetSleepTimeoutMs(
+      next_work_info.delayed_run_time, next_work_info.recent_now));
+  if (delay_msec == 0) {
+    ScheduleWork();
+  } else {
+    base::debug::Alias(&delay_msec);
+    // 调用 Windows 定时函数 SetTimer
+    const UINT_PTR ret =
+        ::SetTimer(message_window_.hwnd(), reinterpret_cast<UINT_PTR>(this),
+                   delay_msec, nullptr);
+    if (ret) {
+      installed_native_timer_ = next_work_info.delayed_run_time;
+      return;
+    }
+  }
+}
+
+```
+
+ScheduleDelayedWork 调用 ScheduleNativeTimer，ScheduleNativeTimer 最终调用 Windows 定时器函数 SetTimer，因为 setTimeout 的第二个参数是 100，所以 SetTimer 的作用是在 100 ms 后，唤醒当前线程，继续消息循环。以下摘自[微软官方文档](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-settimer)：
+
+![setTimer](https://raw.githubusercontent.com/xudale/blog/master/assets/setTimer.png)
+
+
 #### Android
+
+Android 操作系统调用的是 [MessagePumpForUI::ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_android.cc)，源码如下：
+
+```C++
+void MessagePumpForUI::ScheduleDelayedWork(const TimeTicks& delayed_work_time) {
+  if (ShouldQuit())
+    return;
+  if (delayed_scheduled_time_ && *delayed_scheduled_time_ == delayed_work_time)
+    return;
+  delayed_scheduled_time_ = delayed_work_time;
+  int64_t nanos = delayed_work_time.since_origin().InNanoseconds();
+  struct itimerspec ts;
+  ts.it_interval.tv_sec = 0;  // Don't repeat.
+  ts.it_interval.tv_nsec = 0;
+  ts.it_value.tv_sec = nanos / TimeTicks::kNanosecondsPerSecond;
+  ts.it_value.tv_nsec = nanos % TimeTicks::kNanosecondsPerSecond;
+  int ret = timerfd_settime(delayed_fd_, TFD_TIMER_ABSTIME, &ts, nullptr);
+}
+
+// See sys/timerfd.h
+int timerfd_settime(int ufc,
+                    int flags,
+                    const struct itimerspec* utmr,
+                    struct itimerspec* otmr) {
+  return syscall(__NR_timerfd_settime, ufc, flags, utmr, otmr);
+}
+```
+
+ScheduleDelayedWork 调用 timerfd_settime 定时器函数，因为 setTimeout 的第二个参数是 100，所以 timerfd_settime 的作用是在 100 ms 后，唤醒当前线程。timerfd_settime 本质上是通过 linux 的系统调用实现的。
 
 
 ### 线程睡眠 100 ms
+
+因为示例代码：
+
+```JavaScript
+setTimeout(_ => {
+  console.log('test')
+}, 100)
+```
+
+没有其它逻辑需要执行，消息循环可以睡眠 100ms，实际上由于操作系统定时器函数未必准确，实际的睡眠时间可能超过 100ms。
 
 ### 唤醒线程，继续消息循环
 
