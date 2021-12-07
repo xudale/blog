@@ -444,6 +444,12 @@ int timerfd_settime(int ufc,
 ScheduleDelayedWork 调用 timerfd_settime 定时器函数，因为 setTimeout 的第二个参数是 100，所以 timerfd_settime 的作用是在 100 ms 后，唤醒当前线程。timerfd_settime 本质上是通过 linux 的系统调用实现的。
 
 
+本小节总结：
+
+- 调用操作系统的定时器函数，不同的操作系统有不同的实现，比如 Windows 调用 SetTimer，Android 走 linux 的系统调用
+- 如果没有其它逻辑，调用完操作系统的定时器函数后，线程会休眠，消息循环暂停
+- 源码多处都有注释：操作系统的定时器函数，实际定时粒度较粗，不保证精确
+
 ### 线程睡眠 100 ms
 
 因为示例代码：
@@ -458,9 +464,105 @@ setTimeout(_ => {
 
 ### 唤醒线程，继续消息循环
 
+定时时间到，消息循环重启，已经过期的延时任务，会被添加到工作队列，[TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#572) 源码如下：
+
+```C++
+void TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue(LazyNow* lazy_now) {
+  // Enqueue all delayed tasks that should be running now, skipping any that
+  // have been canceled.
+  WorkQueue::TaskPusher delayed_work_queue_task_pusher(
+      main_thread_only().delayed_work_queue->CreateTaskPusher());
+  // 如果仔细看了前面的代码，应该还记得
+  // delayed_incoming_queue 是前端提过多次的延时队列
+  // 遍历队列，将已经到期甚至过期的任务，添加至 delayed_work_queue_task_pusher
+  while (!main_thread_only().delayed_incoming_queue.empty()) {
+    // 获取延时任务队列的队头
+    Task* task =
+        const_cast<Task*>(&main_thread_only().delayed_incoming_queue.top());
+    // TODO(crbug.com/990245): Remove after the crash has been resolved.
+    sequence_manager_->RecordCrashKeys(*task);
+    if (!task->task || task->task.IsCancelled()) {
+      // 删除已经取消的任务
+      main_thread_only().delayed_incoming_queue.pop();
+      continue;
+    }
+    // 如果队头元素的延迟时间大于当前时间
+    // 说明延迟任务队列中的所有任务都未到期，结束循环
+    if (task->delayed_run_time > lazy_now->Now())
+      break;
+
+    delayed_work_queue_task_pusher.Push(task);
+    main_thread_only().delayed_incoming_queue.pop();
+  }
+  UpdateDelayedWakeUp(lazy_now);
+}
+```
+
+
+TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue 的逻辑是收集延迟任务队列中所有到期，甚至已经过期的任务。每一个 setTimeout 向延迟任务队列 main_thread_only().delayed_incoming_queue 中添加任务。在消息循环中，会从延迟任务队列中取任务。延迟任务队列是个优先队列，只要队头任务还没有到期，说明延迟任务中的所以任务都没有到期。
+
+收集完所有到期或过期的延迟任务后，执行，[ThreadControllerWithMessagePumpImpl::DoWorkImpl](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/thread_controller_with_message_pump_impl.cc#305) 源码如下：
+
+```C++
+TimeDelta ThreadControllerWithMessagePumpImpl::DoWorkImpl(
+    LazyNow* continuation_lazy_now) {
+  for (int i = 0; i < main_thread_only().work_batch_size; i++) {
+    const SequencedTaskSource::SelectTaskOption select_task_option =
+        power_monitor_.IsProcessInPowerSuspendState()
+            ? SequencedTaskSource::SelectTaskOption::kSkipDelayedTask
+            : SequencedTaskSource::SelectTaskOption::kDefault;
+    // 选择待执行的任务，存入 task
+    Task* task =
+        main_thread_only().task_source->SelectNextTask(select_task_option);
+    // 如果没有任务，退出
+    if (!task)
+      break;
+    work_id_provider_->IncrementWorkId();
+    // [OnTaskStarted(), OnTaskEnded()] must outscope all other tracing calls
+    // so that the "ThreadController active" trace event lives on top of all
+    // "run task" events.
+    main_thread_only().run_level_tracker.OnTaskStarted();
+    {
+      // 执行任务
+      task_annotator_.RunTask("SequenceManager RunTask", task);
+      // This processes microtasks, hence all scoped operations above must end
+      // after it.
+      main_thread_only().task_source->DidRunTask();
+    }
+    main_thread_only().run_level_tracker.OnTaskEnded();
+    // When Quit() is called we must stop running the batch because the caller
+    // expects per-task granularity.
+    if (main_thread_only().quit_pending)
+      break;
+  }
+}
+
+```
+
+ThreadControllerWithMessagePumpImpl::DoWorkImpl 的逻辑是选择本次循环待执行的任务，然后 task_annotator_.RunTask("SequenceManager RunTask", task) 执行。
+
+
+本小节总结：
+
+- 从延迟任务队列 delayed_incoming_queue 取出已经到期的任务
+- 由于操作系统定时器不精确，有些任务不止到期，甚至已经过期许久
+- 执行已经过期的任务
+- 延迟任务队列的数据结构是优先队列，非常适合定时器任务的场景
+
 ### 为什么 setTimeout 不准确
 
+这是一道前端常见面试题，笔者认为有 3 个原因：
+
+1.硬件层面上，没有绝对准确的时钟，比如把手机断网但不断电，过几个月再看，手机上的时间与真实时间差距很大。当然，这个理由有点属于抬杠
+2.运行浏览器的操作系统，Windwos、Mac 和 Android 等，这么多年开了这么多发布会，从来没宣称过自己是实时操作系统
+3.如果短时间内，CPU 要处理大量定时任务，即使用汇编写，必然会出现有的定时任务没有如期执行的情况
+
+综上，笔者觉得为什么 setTimeout 不准确这个前端面试题，不适合任务一道前端面试题。setTimeout 不准确这件事浏览器没什么关系，从 Chromium 相关注释来看，Chromium 已经很努力了，无奈操作系统层面无法保证精确，和前端就更没什么关系了
+
+
 ## clearTimeout
+
+## 全文总结
 
 
 
