@@ -611,6 +611,8 @@ DOMTimer* DOMTimerCoordinator::RemoveTimeoutByID(int timeout_id) {
 
 ## 全文总结
 
+![overviewSettimeout](https://raw.githubusercontent.com/xudale/blog/master/assets/overviewSettimeout.png)
+
 
 
 
