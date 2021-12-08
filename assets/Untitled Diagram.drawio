@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2021-12-08T16:07:16.782Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="HKCUPa-C39Mce4UEusgK" version="14.7.6" type="github">
+<mxfile host="app.diagrams.net" modified="2021-12-08T16:09:19.346Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="idWbMEfBjPRZyV0aPVAq" version="14.7.6" type="github">
   <diagram id="6a731a19-8d31-9384-78a2-239565b7b9f0" name="Page-1">
     <mxGraphModel dx="1353" dy="1437" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
       <root>
@@ -78,6 +78,12 @@
         </mxCell>
         <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-82" value="400" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
           <mxGeometry x="890" y="350" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-84" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=22;fontColor=#000;" edge="1" parent="1" source="jv8AAYUL_Jo1ZmJcXUMn-83" target="jv8AAYUL_Jo1ZmJcXUMn-82">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-83" value="因为 400 不是延时任务队列的队头&lt;br&gt;所以 400 进入不了唤醒任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;labelBorderColor=#000000;spacingTop=2;spacingLeft=2;spacingBottom=2;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="910" y="230" width="360" height="60" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
