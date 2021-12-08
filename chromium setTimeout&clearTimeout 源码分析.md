@@ -553,14 +553,61 @@ ThreadControllerWithMessagePumpImpl::DoWorkImpl 的逻辑是选择本次循环�
 
 这是一道前端常见面试题，笔者认为有 3 个原因：
 
-1.硬件层面上，没有绝对准确的时钟，比如把手机断网但不断电，过几个月再看，手机上的时间与真实时间差距很大。当然，这个理由有点属于抬杠
-2.运行浏览器的操作系统，Windwos、Mac 和 Android 等，这么多年开了这么多发布会，从来没宣称过自己是实时操作系统
+1.硬件层面上，没有绝对准确的时钟，比如把手机断网但不断电，过几个月再看，手机上的时间与真实时间差距很大。当然，这个理由有点属于抬杠。
+
+2.运行浏览器的操作系统，Windwos、Mac 和 Android 等，这么多年开了这么多发布会，从来没宣称过自己是实时操作系统。
+
 3.如果短时间内，CPU 要处理大量定时任务，即使用汇编写，必然会出现有的定时任务没有如期执行的情况
 
 综上，笔者觉得为什么 setTimeout 不准确这个前端面试题，不适合任务一道前端面试题。setTimeout 不准确这件事浏览器没什么关系，从 Chromium 相关注释来看，Chromium 已经很努力了，无奈操作系统层面无法保证精确，和前端就更没什么关系了
 
 
 ## clearTimeout
+
+clearTimeout 调用的是 [WindowOrWorkerGlobalScope::clearTimeout](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/window_or_worker_global_scope.cc#212)，源码如下：
+
+```C++
+void WindowOrWorkerGlobalScope::clearTimeout(EventTarget& event_target,
+                                             int timeout_id) {
+  // timeout_id 是 Javascript 层 clearTimeout 的参数
+  if (ExecutionContext* context = event_target.GetExecutionContext())
+    DOMTimer::RemoveByID(context, timeout_id);
+}
+// clearTimeout 和 clearInterval 的源码是完全一样的
+void WindowOrWorkerGlobalScope::clearInterval(EventTarget& event_target,
+                                              int timeout_id) {
+  if (ExecutionContext* context = event_target.GetExecutionContext())
+    DOMTimer::RemoveByID(context, timeout_id);
+}
+```
+
+从源码中可见，clearTimeout 和 clearInterval 是完全一样的，可以混用。[规范](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html)中也是如此规定的。
+
+![clearTimeoutclearInterval](https://raw.githubusercontent.com/xudale/blog/master/assets/clearTimeoutclearInterval.png)
+
+DOMTimer::RemoveByID 调用的是 [DOMTimerCoordinator::RemoveTimeoutByID](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer_coordinator.cc#27)，源码如下：
+
+```C++
+DOMTimer* DOMTimerCoordinator::RemoveTimeoutByID(int timeout_id) {
+  if (timeout_id <= 0)
+    return nullptr;
+  // timers_ 是本文开始提到的，存放所以定时器对象的哈希表
+  DOMTimer* removed_timer = timers_.Take(timeout_id);
+  if (removed_timer)
+    removed_timer->Stop();
+  return removed_timer;
+}
+```
+
+本文最开始提到，有个哈希表 timers_，存放所有的定时器，本文结束的时候我们又看见了它，首尾呼应。从哈希表 timers_ 中取出 key 为 timeout_id 的定时器对象 removed_timer，removed_timer->Stop() 的作用是将定时器对象的回调函数字段置为空，定时器对象和延时任务是一一对应的，定时器对象的  delayed_task_handle_ 字段引用的延时任务。找到延时任务，并将延时任务标记为清除。标记为清除的任务，会在下一次循环中，在前文提到的 TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue 方法中，从延时任务队列中移除。
+
+
+本小节总结：
+
+- 从哈希表 timers_ 找到待操作的定时器
+- 将定时器的回调函数字段置为空
+- 将定时器相关联的任务标记为清除 
+- 标记为清除的延时任务，会在下一次循环中，从延时任务队列中移除
 
 ## 全文总结
 
