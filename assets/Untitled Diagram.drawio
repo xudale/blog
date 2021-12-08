@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2021-12-08T16:11:26.382Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="iUvpWCrTguMzHg2ZU4km" version="14.7.6" type="github">
+<mxfile host="app.diagrams.net" modified="2021-12-08T16:15:50.106Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="DztBQcCHIqO3Q5MoUxnY" version="14.7.6" type="github">
   <diagram id="6a731a19-8d31-9384-78a2-239565b7b9f0" name="Page-1">
     <mxGraphModel dx="1353" dy="1437" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
       <root>
@@ -73,7 +73,7 @@
         <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-80" value="700" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
           <mxGeometry x="750" y="350" width="120" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-81" value="400" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-81" value="700" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
           <mxGeometry x="750" y="410" width="120" height="40" as="geometry" />
         </mxCell>
         <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-82" value="400" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
@@ -86,6 +86,20 @@
         </mxCell>
         <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-83" value="因为 400 不是延时任务队列&lt;br&gt;的队头，所以 400 进入不了&lt;br&gt;唤醒任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;labelBorderColor=#000000;spacingTop=2;spacingLeft=2;spacingBottom=2;spacingRight=8;" vertex="1" parent="1">
           <mxGeometry x="900" y="220" width="360" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-86" value="取唤醒任务队列的队头，调用操作系统定时器函数，100 ms 后唤醒线程" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="480" width="800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-87" value="线程睡眠 100 ms" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="530" width="800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-89" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=22;fontColor=#000;" edge="1" parent="1" source="jv8AAYUL_Jo1ZmJcXUMn-88">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="850" y="600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-88" value="线程唤醒，消息循环继续，执行到期的任务，并计算下次线程唤醒的时间" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="580" width="710" height="40" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
