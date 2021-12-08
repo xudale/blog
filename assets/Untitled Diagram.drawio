@@ -1,0 +1,127 @@
+<mxfile host="app.diagrams.net" modified="2021-12-08T16:27:44.460Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="zZkvqHl8BBh3W4WXuDGQ" version="14.7.6" type="github">
+  <diagram id="6a731a19-8d31-9384-78a2-239565b7b9f0" name="Page-1">
+    <mxGraphModel dx="1353" dy="1539" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="34" value="create&#xa;status&#xa;report" style="shape=mxgraph.flowchart.data;strokeWidth=2;gradientColor=none;gradientDirection=north;fontStyle=0;html=1;" parent="1" vertex="1">
+          <mxGeometry x="240.5" y="1490" width="159" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="41" value="" style="edgeStyle=elbowEdgeStyle;elbow=vertical;exitX=0.5;exitY=1;exitPerimeter=0;entryX=0.5;entryY=0;entryPerimeter=0;fontStyle=1;strokeColor=#003366;strokeWidth=1;html=1;" parent="1" source="34" edge="1">
+          <mxGeometry width="100" height="100" as="geometry">
+            <mxPoint y="100" as="sourcePoint" />
+            <mxPoint x="320" y="1621.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-56" value="举一个综合的例子：&lt;br&gt;setTimeout(_ =&amp;gt; {}, 700)&lt;br&gt;setTimeout(_ =&amp;gt; {}, 100)&lt;br&gt;setTimeout(_ =&amp;gt; {}, 400)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="-80" width="260" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-61" value="1.消息循环：死循环，但大多数时间都在睡眠&lt;br&gt;2.延时任务队列：优先队列，存储所有的延时任务&lt;br&gt;3.唤醒任务队列：优先队列，存储历任延时任务队列的队头&lt;br&gt;4.前面提到的优先队列，延时越小，优先级越高" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="-80" width="658" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-63" value="setTimeout(_ =&amp;gt; {}, 700) 执行完毕时" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="360" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-64" value="setTimeout(_ =&amp;gt; {}, 100) 执行完毕时" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="240" width="360" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-65" value="延时任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;fontStyle=0;fontColor=#000;" vertex="1" parent="1">
+          <mxGeometry x="460" y="70" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-66" value="700" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="610" y="70" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-67" value="唤醒任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;fontStyle=0;fontColor=#000;" vertex="1" parent="1">
+          <mxGeometry x="460" y="130" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-68" value="700" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="610" y="130" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-69" value="延时任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;fontStyle=0;fontColor=#000;" vertex="1" parent="1">
+          <mxGeometry x="460" y="210" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-70" value="100" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="610" y="210" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-71" value="唤醒任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;fontStyle=0;fontColor=#000;" vertex="1" parent="1">
+          <mxGeometry x="460" y="270" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-72" value="100" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="610" y="270" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-73" value="700" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="750" y="210" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-74" value="700" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="750" y="270" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-75" value="setTimeout(_ =&amp;gt; {}, 400) 执行完毕时" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="380" width="360" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-76" value="延时任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;fontStyle=0;fontColor=#000;" vertex="1" parent="1">
+          <mxGeometry x="460" y="350" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-77" value="100" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="610" y="350" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-78" value="唤醒任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;fontStyle=0;fontColor=#000;" vertex="1" parent="1">
+          <mxGeometry x="460" y="410" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-79" value="100" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="610" y="410" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-80" value="700" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="750" y="350" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-81" value="700" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="750" y="410" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-82" value="400" style="rounded=0;whiteSpace=wrap;html=1;fontSize=22;strokeWidth=5;align=center;verticalAlign=middle;labelBackgroundColor=#00FF00;fillColor=#33FF33;" vertex="1" parent="1">
+          <mxGeometry x="890" y="350" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-96" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;fontSize=22;fontColor=#000;" edge="1" parent="1" source="jv8AAYUL_Jo1ZmJcXUMn-83" target="jv8AAYUL_Jo1ZmJcXUMn-82">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-83" value="因为 400 不是延时任务&lt;br&gt;队列的队头，所以进入&lt;br&gt;不了唤醒任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;labelBorderColor=#000000;spacingTop=2;spacingLeft=2;spacingBottom=2;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="900" y="220" width="360" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-86" value="取唤醒任务队列的队头，调用操作系统的定时器函数，100 ms 后唤醒线程" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="480" width="800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-87" value="线程睡眠 100 ms" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="530" width="800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-88" value="线程唤醒，消息循环继续，执行到期的任务，并计算下次线程唤醒的时间" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="580" width="710" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-91" value="" style="endArrow=none;html=1;fontSize=22;fontColor=#000;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="790" y="600" as="sourcePoint" />
+            <mxPoint x="860" y="600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-92" value="" style="endArrow=none;html=1;fontSize=22;fontColor=#000;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="860" y="650" as="sourcePoint" />
+            <mxPoint x="860" y="600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-93" value="" style="endArrow=none;html=1;fontSize=22;fontColor=#000;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="440" y="650" as="sourcePoint" />
+            <mxPoint x="860" y="650" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-94" value="" style="endArrow=classic;html=1;fontSize=22;fontColor=#000;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="440" y="650" as="sourcePoint" />
+            <mxPoint x="440" y="610" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-95" value="循环执行" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="650" width="100" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
