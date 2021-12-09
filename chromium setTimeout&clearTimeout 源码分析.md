@@ -39,6 +39,7 @@ DOMTimer::Install 会调用 [DOMTimerCoordinator::InstallNewTimeout](https://chr
 
 ```C++
 using TimeoutMap = HeapHashMap<int, Member<DOMTimer>>;
+// 存放所有的定时器
 TimeoutMap timers_;
 
 int DOMTimerCoordinator::InstallNewTimeout(ExecutionContext* context,
@@ -51,14 +52,16 @@ int DOMTimerCoordinator::InstallNewTimeout(ExecutionContext* context,
   timers_.insert(timeout_id,
                  MakeGarbageCollected<DOMTimer>(context, action, timeout,
                                                 single_shot, timeout_id));
-  // 这里是 setTimeout 的返回值
+  // 这里是 JavaScript 层 setTimeout 的返回值
   return timeout_id;
 }
 ```
 
-timeout_id 是 setTimeout 的返回值，它是由 [NextID](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer_coordinator.cc#42) 生成的。
+timeout_id 是 setTimeout 的返回值，它由 [NextID](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer_coordinator.cc#42) 生成，源码如下。
 
 ```C++
+// 在连续调用 setTimeout 的场景下
+// circular_sequential_id_ 的值会不断增加，并返回
 int circular_sequential_id_ = 0;
 
 int DOMTimerCoordinator::NextID() {
@@ -75,13 +78,11 @@ int DOMTimerCoordinator::NextID() {
 }
 ```
 
-NextID 函数的核心代码就一行：++circular_sequential_id_，circular_sequential_id_ 是 DOMTimerCoordinator 的私有属性。可以看到，多次调用 setTimeout，它的返回值是越来越大的，如下图。
+NextID 函数的核心代码就一行：++circular_sequential_id_，circular_sequential_id_ 是 DOMTimerCoordinator 的私有属性。可以看到，多次调用 setTimeout，它的返回值是递增的，下图来自浏览器控制台。
 
 ![setTimeout](https://raw.githubusercontent.com/xudale/blog/master/assets/setTimeout.png)
 
-timers_.insert() 中的 timers_ 是一个哈希表，存放所有的定时器对象。key 是 定时器的返回值 timeout_id， value 是定时器对象 DOMTimer。还要注意 timers_ 存放的是定时器对象，与任务无关。
-
-> 所有的定时器对象 DOMTimer，都存在哈希表 timers_ 中
+timers_.insert() 中的 timers_ 是一个哈希表，存放所有的定时器对象。key 是 setTimeout 的返回值 timeout_id， value 是定时器对象 DOMTimer。这里要注意，timers_ 存放的是定时器对象，虽然定时器对象与任务是一一对应的关系，但本文目前为止的所有代码，还没有涉及任务。在后面的 clearTimeout 源码中，我们还会见到定时器哈希表：timers_。
 
 定时器构造函数，[DOMTimer::DOMTimer](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer.cc#71)，源码如下：
 
