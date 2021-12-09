@@ -203,7 +203,7 @@ void TimerBase::SetNextFireTime(base::TimeTicks now, base::TimeDelta delay) {
 
 ### 插入延迟任务队列
 
-web_task_runner_->PostDelayedTask 的底层调用的是 [TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#396)
+web_task_runner_->PostDelayedTask 的底层调用的是 [TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#396)，向延时任务队列插入一个任务。并调用 UpdateDelayedWakeUp，更新当前线程的唤醒时间。
 
 ```C++
 void TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread(
@@ -231,7 +231,7 @@ struct MainThreadOnly {
   TimeDomain* time_domain;
   std::unique_ptr<WorkQueue> delayed_work_queue;
   std::unique_ptr<WorkQueue> immediate_work_queue;
-  // 存放所以延迟任务
+  // 本文男一号，延时任务队列
   DelayedIncomingQueue delayed_incoming_queue;
   ObserverList<TaskObserver>::Unchecked task_observers;
   base::internal::HeapHandle heap_handle;
@@ -239,7 +239,7 @@ struct MainThreadOnly {
 }
 ```
 
-MainThreadOnly 对象有很多任务队列，TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread 的核心逻辑，是向 MainThreadOnly 对象的延迟任务队列 delayed_incoming_queue，提交一次任务。delayed_incoming_queue 的底层是最小堆，为了便于理解，本文将延迟队列 delayed_incoming_queue 当优先级队列看待，延迟时间最小的任务，优先级最高。事实上 delayed_incoming_queue 的方法，和 C++ 优先队列 priority_queue 的主要方法基本一样。下面摘自百度百科：
+MainThreadOnly 对象有很多任务队列，本文重点关注的是延时任务队列：delayed_incoming_queue。TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread 的核心逻辑，是向 MainThreadOnly 对象的延迟任务队列 delayed_incoming_queue，插入一个延时任务。delayed_incoming_queue 的底层是最小堆，为了便于理解，本文将延迟队列 delayed_incoming_queue 当优先队列看待，并且延迟时间最小的任务，优先级最高。事实上 delayed_incoming_queue 的方法，和 C++ 优先队列 priority_queue 的主要方法基本一样。下面一段话摘自优先队列的百度百科：
 
 > 普通的队列是一种先进先出的数据结构，元素在队列尾追加，而从队列头删除。在优先队列中，元素被赋予优先级。当访问元素时，具有最高优先级的元素最先删除。优先队列具有最高级先出 （first in, largest out）的行为特征。通常采用堆数据结构来实现。
 
@@ -249,15 +249,15 @@ MainThreadOnly 对象有很多任务队列，TaskQueueImpl::PushOntoDelayedIncom
 - push 插入元素到队尾 (并排序)
 - pop 弹出队头元素
 
-因为 JavaScript 没有优先队列，所以这里强调一个 top 和 pop 方法。top 只是访问队头元素，并不会从优先队列中弹出队头元素，pop 弹出队头元素。
+因为 JavaScript 没有优先队列，所以这里强调一下 top 和 pop 方法。top 只是访问队头元素，并不会从优先队列中弹出队头元素，pop 弹出队头元素。简单说，top 只是看看队头元素，pop 拿走了队头元素。
 
-既然已经知道 delayed_incoming_queue 是一个优先队列，那么很容易看出 main_thread_only().delayed_incoming_queue.push(std::move(pending_task)) 的作用是向优先队列加入一个 task。
+既然 delayed_incoming_queue 是一个优先队列，那么很容易看出 main_thread_only().delayed_incoming_queue.push(std::move(pending_task)) 的作用是向优先队列插入一个延时任务。
 
 本小节总结：
 
 - Chromium 有延时任务队列 delayed_incoming_queue，存放延时任务
 - 延时任务队列类似于 C++ 的优先队列，延时最小的任务，优先级最高
-- 每一个延时任务都会插入延时任务队列
+- 每一个延时任务都会被插入延时任务队列
 
 
 ### (可能)插入唤醒任务队列
@@ -270,7 +270,7 @@ void TaskQueueImpl::UpdateDelayedWakeUp(LazyNow* lazy_now) {
 }
 ```
 
-UpdateDelayedWakeUp 的功能是获取线程唤醒时间，想像这样一个场景，假如用户 3 次调用 setTimeout，延迟时间分别是 700ms，100ms，400ms。此时延迟任务队列中会存在 3 个任务，这 3 个任务中，明显延迟时间为 100ms 的任务应该最先执行，其优先级最高，其次才是延迟时间为 400ms 和 700ms 的任务。所以应该在 100ms 后唤醒线程。
+UpdateDelayedWakeUp 的功能是设置线程唤醒时间，想像这样一个场景，假如用户 3 次调用 setTimeout，延迟时间分别是 700ms，100ms，400ms。此时延迟任务队列中会存在 3 个任务，这 3 个任务中，明显应该是延迟时间为 100ms 的任务应该最先执行，其优先级最高，其次才是延迟时间为 400ms 和 700ms 的任务。所以眼下的工作，应该在 100ms 后唤醒线程。
 
 UpdateDelayedWakeUp 先调用的是 [GetNextScheduledWakeUpImpl](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#546)，源码如下：
 
@@ -294,7 +294,7 @@ Optional<DelayedWakeUp> TaskQueueImpl::GetNextScheduledWakeUpImpl() {
 }
 ```
 
-GetNextScheduledWakeUpImpl 的功能是生成一个唤醒任务，主要逻辑是读取延迟任务队列的队头，得到延迟任务队列中延迟时间最小的任务 top_task，以 top_task 的延迟时间 delayed_run_time，返回一个延迟任务 DelayedWakeUp。
+GetNextScheduledWakeUpImpl 的功能是创建一个唤醒任务，主要逻辑是读取延迟任务队列的队头，得到延迟任务队列中延迟时间最小的任务 top_task，以 top_task 的延迟时间 delayed_run_time 为参数，创建一个唤醒任务 DelayedWakeUp，并返回。
 
 得到唤醒任务后，调用 [UpdateDelayedWakeUpImpl](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#1128)，源码如下：
 
@@ -302,6 +302,7 @@ GetNextScheduledWakeUpImpl 的功能是生成一个唤醒任务，主要逻辑�
 ```C++
 void TaskQueueImpl::UpdateDelayedWakeUpImpl(LazyNow* lazy_now,
                                             Optional<DelayedWakeUp> wake_up) {
+  // wake_up 是前文提到的唤醒任务
   // 如果新的唤醒时间和老的唤醒时间一样，则不处理
   if (main_thread_only().scheduled_wake_up == wake_up)
     return;
@@ -310,7 +311,7 @@ void TaskQueueImpl::UpdateDelayedWakeUpImpl(LazyNow* lazy_now,
 }
 ```
 
-UpdateDelayedWakeUpImpl 先判断新的唤醒时间 wake_up，和之前的唤醒时间 scheduled_wake_up 是否相同，如果相同，则返回，不会变更任务唤醒队列。如果不同则调用 [SetNextWakeUpForQueue](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/time_domain.cc#56)，源码如下：
+UpdateDelayedWakeUpImpl 先判断新的唤醒时间 wake_up，和之前的唤醒时间 scheduled_wake_up 是否相同，如果相同，则返回，不会变更任务唤醒队列。因为 DelayedWakeUp 做了运算符重载，所以 main_thread_only().scheduled_wake_up == wake_up 比较的是时间而不是对象。如果不同则调用 [SetNextWakeUpForQueue](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/time_domain.cc#56)，源码如下：
 
 ```C++
 void TimeDomain::SetNextWakeUpForQueue(
@@ -318,6 +319,8 @@ void TimeDomain::SetNextWakeUpForQueue(
     Optional<internal::DelayedWakeUp> wake_up,
     LazyNow* lazy_now) {
   if (wake_up) {
+    // 继本文男一号延迟任务队列后
+    // 本文女一号唤醒任务队列现身
     delayed_wake_up_queue_.insert({wake_up.value(), queue});
   } 
 
