@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2021-12-08T16:27:44.460Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="zZkvqHl8BBh3W4WXuDGQ" version="14.7.6" type="github">
+<mxfile host="app.diagrams.net" modified="2021-12-09T14:53:50.355Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="i_FsRrKOFQJVM71WX7Co" version="14.7.6" type="github">
   <diagram id="6a731a19-8d31-9384-78a2-239565b7b9f0" name="Page-1">
-    <mxGraphModel dx="1353" dy="1539" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
+    <mxGraphModel dx="1353" dy="1596" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -85,7 +85,7 @@
         <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-83" value="因为 400 不是延时任务&lt;br&gt;队列的队头，所以进入&lt;br&gt;不了唤醒任务队列" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;labelBorderColor=#000000;spacingTop=2;spacingLeft=2;spacingBottom=2;spacingRight=8;" vertex="1" parent="1">
           <mxGeometry x="900" y="220" width="360" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-86" value="取唤醒任务队列的队头，调用操作系统的定时器函数，100 ms 后唤醒线程" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-86" value="取唤醒任务队列的队头，调用操作系统的定时器函数，最终 100 ms 后唤醒线程" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
           <mxGeometry x="80" y="480" width="800" height="40" as="geometry" />
         </mxCell>
         <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-87" value="线程睡眠 100 ms" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
@@ -120,6 +120,12 @@
         </mxCell>
         <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-95" value="循环执行" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
           <mxGeometry x="600" y="650" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-98" value="暂定 700 ms 后唤醒线程" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="170" width="800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-99" value="暂定 100 ms 后唤醒线程" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="310" width="800" height="40" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
