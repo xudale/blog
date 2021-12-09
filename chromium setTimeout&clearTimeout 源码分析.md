@@ -239,7 +239,7 @@ struct MainThreadOnly {
 }
 ```
 
-MainThreadOnly 对象有很多任务队列，本文重点关注的是延时任务队列：delayed_incoming_queue。TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread 的核心逻辑，是向 MainThreadOnly 对象的延迟任务队列 delayed_incoming_queue，插入一个延时任务。delayed_incoming_queue 的底层是最小堆，为了便于理解，本文将延迟队列 delayed_incoming_queue 当优先队列看待，并且延迟时间最小的任务，优先级最高。事实上 delayed_incoming_queue 的方法，和 C++ 优先队列 priority_queue 的主要方法基本一样。下面一段话摘自优先队列的百度百科：
+MainThreadOnly 对象有很多任务队列，本文重点关注的是延时任务队列：delayed_incoming_queue。TaskQueueImpl::PushOntoDelayedIncomingQueueFromMainThread 的核心逻辑，是向 MainThreadOnly 对象的延迟任务队列 delayed_incoming_queue，插入一个延时任务。delayed_incoming_queue 的底层是最小堆，为了便于理解，本文将延迟任务队列 delayed_incoming_queue 当优先队列看待，并且延迟时间最小的任务，优先级最高。事实上 delayed_incoming_queue 的方法，和 C++ 优先队列 priority_queue 的主要方法基本一样。下面一段话摘自优先队列的百度百科：
 
 > 普通的队列是一种先进先出的数据结构，元素在队列尾追加，而从队列头删除。在优先队列中，元素被赋予优先级。当访问元素时，具有最高优先级的元素最先删除。优先队列具有最高级先出 （first in, largest out）的行为特征。通常采用堆数据结构来实现。
 
@@ -311,7 +311,7 @@ void TaskQueueImpl::UpdateDelayedWakeUpImpl(LazyNow* lazy_now,
 }
 ```
 
-UpdateDelayedWakeUpImpl 先判断新的唤醒时间 wake_up，和之前的唤醒时间 scheduled_wake_up 是否相同，如果相同，则返回，不会变更任务唤醒队列。因为 DelayedWakeUp 做了运算符重载，所以 main_thread_only().scheduled_wake_up == wake_up 比较的是时间而不是对象。如果不同则调用 [SetNextWakeUpForQueue](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/time_domain.cc#56)，源码如下：
+UpdateDelayedWakeUpImpl 先判断新的唤醒时间 wake_up，和之前的唤醒时间 scheduled_wake_up 是否相同，如果相同，则返回，不会变更任务唤醒任务队列。因为 DelayedWakeUp 做了运算符重载，所以 main_thread_only().scheduled_wake_up == wake_up 比较的是时间而不是对象。如果不同则调用 [SetNextWakeUpForQueue](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/time_domain.cc#56)，源码如下：
 
 ```C++
 void TimeDomain::SetNextWakeUpForQueue(
@@ -333,28 +333,28 @@ void TimeDomain::SetNextWakeUpForQueue(
 
 ```
 
-SetNextWakeUpForQueue 的功能是向唤醒队列 delayed_wake_up_queue_ 插入唤醒任务。
+SetNextWakeUpForQueue 的功能是向唤醒任务队列 delayed_wake_up_queue_ 插入唤醒任务。
 
-本小节的标题(可能)插入唤醒任务队列，之所以加上”可能“二字，是因为如果延迟任务队列已经有延迟时间很短的任务，比如延迟任务队列有延迟时间为 700ms 和 100ms 的两个任务，那么当调用以下代码：
+本小节的标题(可能)插入唤醒任务队列，之所以加上”可能“二字，是因为如果延迟任务队列已经有延迟时间很短的任务，比如延迟任务队列已经有延迟时间为 100ms 的任务，那么当调用以下代码：
 
 ```JavaScript
 setTimeout(_ => {}, 400)
 ```
 
-会向延迟任务队列加入一个延迟时间为 400ms 的任务，但此时延迟任务队列的队头依然是延迟时间为 100ms 的任务。延迟时间为 400ms 的任务只会进入延迟任务队列，不会进入唤醒队列。此时的唤醒队列只有一个任务：延迟时间为 100ms 的任务。
+会向延迟任务队列加入一个延迟时间为 400ms 的任务，但此时延迟任务队列的队头依然是延迟时间为 100ms 的任务。延迟时间为 400ms 的任务无法进入唤醒任务队列。此时的唤醒任务队列只有一个唤醒任务：延迟时间为 100ms 的任务。
 
-打个比方，如果延迟任务队列保存的是丐帮全部成员，那么唤醒任务队列保存的就是汪剑通、乔峰、洪七公和黄蓉这些当过帮主的人。唤醒任务队列是从延迟任务队列中优中选优，延迟任务队列的每一任队头，都曾经是唤醒任务队列的一员。
+打个比方，如果延迟任务队列保存的是丐帮全部成员，那么唤醒任务队列保存的就是乔峰、洪七公和黄蓉这些当过帮主的人。郭靖同志虽然也很优秀，但 No。唤醒任务队列保存的是延迟任务队列的历任队头。这一点从实际工作中也很好理解，无论浏览器当前有多少个定时器，在眼下，最重要最急迫的是那个延迟时间最短的那个定时器，也就是唤醒任务队列的队头。
 
 本小节总结：
 
-- Chromium 有唤醒任务队列，记录下次唤醒线程的时间
+- Chromium 有唤醒任务队列，队头元素记录下次唤醒线程的时间
 - 唤醒任务队列保存的是延迟任务队列的历任队头
 - 每一个延迟任务都会插入延迟任务队列，但只有延迟任务队列的队头，才会插入唤醒任务队列
 
 
 ### 调用操作系统的定时器函数
 
-SetNextDelayedDoWork 调用了消息泵(MessagePump)类的 [ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump.h#219)，不同的操作系统，定时唤醒线程的方法肯定是不一样的，笔者的电脑是 Mac，所以先从 Mac 开始。笔者在 Mac 下打过 log，因为没有 Windows 和 Androd，所以 Windows 和 Android 部分的操作系统相关代码，只是看过，没有真机跑过。
+SetNextDelayedDoWork 调用了消息泵(MessagePump)类的 [ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump.h#219)，不同的操作系统，定时器的方法肯定是不一样的，笔者的电脑是 Mac，所以从 Mac 开始。因为没有 Windows 和 Androd 真机，所以 Windows 和 Android 部分的定时器相关代码，只是看过，没有打过 log。
 
 #### Mac
 
@@ -374,7 +374,7 @@ void MessagePumpCFRunLoopBase::ScheduleDelayedWorkImpl(TimeDelta delta) {
 }
 ```
 
-ScheduleDelayedWork 和 ScheduleDelayedWorkImpl 的参数都是延迟时间，只是格式不一样。ScheduleDelayedWork 的参数 delayed_work_time 表示的是延迟时间的绝对数值，ScheduleDelayedWorkImpl 的参数 delta 表示的是延迟时间距离当前时间的数值。ScheduleDelayedWorkImpl 调用 Mac 操作系统的函数 CFRunLoopTimerSetNextFireDate，因为 setTimeout 的第二个参数是 100，所以 CFRunLoopTimerSetNextFireDate 的作用是在 100 ms 后，唤醒当前线程，继续消息循环。以下摘自[苹果官方文档](https://developer.apple.com/documentation/corefoundation/1542501-cfrunlooptimersetnextfiredate)：
+ScheduleDelayedWork 和 ScheduleDelayedWorkImpl 的参数都是延迟时间，只是格式不一样。ScheduleDelayedWork 的参数 delayed_work_time 表示的是延迟时间的绝对数值，ScheduleDelayedWorkImpl 的参数 delta 表示的是延迟时间距离当前时间的数值。ScheduleDelayedWorkImpl 调用 Mac 操作系统的函数 CFRunLoopTimerSetNextFireDate，因为本文示例代码 setTimeout 的第二个参数是 100，所以 CFRunLoopTimerSetNextFireDate 的作用是在 100 ms 后，唤醒当前线程，继续消息循环。以下摘自[苹果官方文档](https://developer.apple.com/documentation/corefoundation/1542501-cfrunlooptimersetnextfiredate)：
 
 ![CFRunLoopTimerSetNextFireDate](https://raw.githubusercontent.com/xudale/blog/master/assets/CFRunLoopTimerSetNextFireDate.png)
 
@@ -399,7 +399,6 @@ void MessagePumpForUI::ScheduleNativeTimer(
   if (delay_msec == 0) {
     ScheduleWork();
   } else {
-    base::debug::Alias(&delay_msec);
     // 调用 Windows 定时函数 SetTimer
     const UINT_PTR ret =
         ::SetTimer(message_window_.hwnd(), reinterpret_cast<UINT_PTR>(this),
@@ -420,7 +419,7 @@ ScheduleDelayedWork 调用 ScheduleNativeTimer，ScheduleNativeTimer 最终调�
 
 #### Android
 
-Android 操作系统调用的是 [MessagePumpForUI::ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_android.cc)，源码如下：
+Android 操作系统调用的是 [MessagePumpForUI::ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_android.cc#334)，源码如下：
 
 ```C++
 void MessagePumpForUI::ScheduleDelayedWork(const TimeTicks& delayed_work_time) {
@@ -452,7 +451,7 @@ ScheduleDelayedWork 调用 timerfd_settime 定时器函数，因为 setTimeout �
 
 本小节总结：
 
-- 调用操作系统的定时器函数，不同的操作系统有不同的实现，比如 Windows 调用 SetTimer，Android 走 linux 的系统调用
+- 调用操作系统的定时器函数，不同操作系统有不同的实现，比如 Windows 调用 SetTimer，Android 走 linux 的系统调用
 - 如果没有其它逻辑，调用完操作系统的定时器函数后，线程会休眠，消息循环暂停
 - 源码多处都有注释：操作系统的定时器函数，实际定时粒度较粗，不保证精确
 
