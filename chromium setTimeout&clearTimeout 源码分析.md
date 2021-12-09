@@ -6,15 +6,12 @@ setTimeout 函数相关的源码量巨大，涉及线程、消息循环、任务
 
 ## setTimeout
 
-本文绝大部分篇幅只分析以下 JavaScript 代码。
+本文绝大部分篇幅将分析以下 JavaScript 代码片断。
 
 ```JavaScript
-setTimeout(_ => {
-  console.log('test')
-}, 100)
+setTimeout(_ => {}, 100)
 ```
-
-### 生成任务
+### 创建任务
 
 setTimeout 调用的是 Blink 的 [WindowOrWorkerGlobalScope::setTimeout](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/window_or_worker_global_scope.cc#136)，源码如下：
 
@@ -25,6 +22,8 @@ int WindowOrWorkerGlobalScope::setTimeout(
     V8Function* handler,
     int timeout,
     const HeapVector<ScriptValue>& arguments) {
+  // handler:JavaScript 层 setTimeout 的回调函数
+  // timeout:JavaScript 层 setTimeout 的延时时间
   ExecutionContext* execution_context = event_target.GetExecutionContext();
   auto* action = MakeGarbageCollected<ScheduledAction>(
       script_state, execution_context, handler, arguments);
@@ -33,9 +32,9 @@ int WindowOrWorkerGlobalScope::setTimeout(
 }
 ```
 
-handler 参数是 setTimeout 定时器到期的回调函数，timeout 表示延迟时间，通过这两个参数，生成 action，最后调用 [DOMTimer::Install](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer.cc#53)。
+handler 参数是 setTimeout 定时器到期的回调函数，timeout 是定时器延迟时间，通过这两个参数，生成 action，最后调用 [DOMTimer::Install](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer.cc#53)。
 
-DOMTimer::Install 会调用 [DOMTimerCoordinator::InstallNewTimeout](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer_coordinator.cc#14)，向定时器哈希表插入一个定时器。
+DOMTimer::Install 会调用 [DOMTimerCoordinator::InstallNewTimeout](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/dom_timer_coordinator.cc#14)，向定时器哈希表 timers_ 插入一个定时器，源码如下。
 
 
 ```C++
