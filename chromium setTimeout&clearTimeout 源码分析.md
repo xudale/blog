@@ -1,8 +1,8 @@
 # Chromium setTimeout/clearTimeout 源码分析
 
-Chromium 源码版本 91.0.4437.3。
+Chromium 源码版本 91.0.4437.3，大约发布于 2021 年 2 月。
 
-setTimeout 函数相关的源码量巨大，涉及线程、消息循环、任务队列及操作系统的定时器。笔者曾看看过 V8 microtask 队列的源码，并写过一篇文章，目测 setTimeout 函数的源码量大约是 microtask 队列源码量的 100 倍，所以本文只分析核心代码。
+setTimeout 函数相关的源码量巨大，涉及线程、消息循环、任务队列以及操作系统的定时器函数。笔者曾经看过 V8 microtask 队列的源码，并写过一篇[文章](https://zhuanlan.zhihu.com/p/134647506)，粗略估计 setTimeout 函数的代码量大约是 microtask 队列的 100 倍，所以本文只分析 setTimeout 关键步骤的代码。
 
 ## setTimeout
 
