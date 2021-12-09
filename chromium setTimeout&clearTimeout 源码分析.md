@@ -110,17 +110,20 @@ DOMTimer::DOMTimer(ExecutionContext* context,
   }
   MoveToNewTaskRunner(context->GetTaskRunner(task_type));
   // Clamping up to 1ms for historical reasons crbug.com/402694.
+  // 定时时间至少要 1ms，与网上传言的 4 ms 不符
   timeout = std::max(timeout, base::TimeDelta::FromMilliseconds(1));
   if (single_shot)
+    // setTimeout 逻辑分支在此
     StartOneShot(timeout, FROM_HERE);
   else
+    // setInterval 逻辑分支在此
     StartRepeating(timeout, FROM_HERE);
 }
 ```
 
-参数 action 是一个包含定时器延时处理函数和延时时间的对象，timeout 表示延时时间，因为 setTimeout 是单次触发，所以 single_shot 为 true，timeout_id 是定时器的返回值。
+参数 action 是一个包含定时器到期回调函数和延时间的对象，timeout 表示延时时间，因为 setTimeout 是单次触发，所以 single_shot 为 true，timeout_id 是定时器的返回值。
 
-DOMTimer::DOMTimer 的逻辑分为两部分。首先通过定时器的延时时间，获取任务类型 task_type。本文示例代码的 task_type 是 TaskType::kJavascriptTimerDelayedLowNesting。通过 MoveToNewTaskRunner(context->GetTaskRunner(task_type)) 来获取相应的任务运行器，存在 web_task_runner_ 中。[TimerBase::MoveToNewTaskRunner](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/platform/timer.cc#81) 源码如下：
+DOMTimer::DOMTimer 的逻辑分为两部分。首先通过定时器的延时时间，获取任务类型 task_type。本文示例代码的延时时间是 100，所以 task_type 是 TaskType::kJavascriptTimerDelayedLowNesting。通过 MoveToNewTaskRunner(context->GetTaskRunner(task_type)) 来获取相应的任务运行器(源码里是 TaskRunner），存在 web_task_runner_ 中。[TimerBase::MoveToNewTaskRunner](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/platform/timer.cc#81) 源码如下：
 
 ```C++
 void TimerBase::MoveToNewTaskRunner(
@@ -131,6 +134,8 @@ void TimerBase::MoveToNewTaskRunner(
   }
   bool active = IsActive();
   weak_ptr_factory_.InvalidateWeakPtrs();
+  // 不同的任务类型，有不同的任务运行器
+  // 获取相应的任务运行器
   web_task_runner_ = std::move(task_runner);
 }
 ```
@@ -171,11 +176,9 @@ enum class TaskType : unsigned char {
 }
 ```
 
-从 TaskType 的声明及 TimerBase::MoveToNewTaskRunner 源码可以看出，浏览器中的任务有多种类型，不同类型的任务，放在不同地方。
+从 TaskType 的声明及 TimerBase::MoveToNewTaskRunner 源码可以看出，浏览器中的任务有多种类型，不同类型的任务，放在不同的任务队列。比如因用户点击事件而引起的任务，和因调用 setTimeout 引起的任务，这两种任务在不同的队列中。
 
-> 浏览器中的任务有多种类型，不同的类型的任务，放在不同的队列里。比如因为用户点击事件引起的任务，和 setTimeout 引起的任务，就在不同的队列中
-
-找到任务运行器 web_task_runner_ 后，在 StartOneShot 一路追下去，最终在 [TimerBase::SetNextFireTime](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/platform/timer.cc#106)，调用 web_task_runner_->PostDelayedTask 提交了一次延迟任务，PostDelayedTask 第 2 个参数 BindTimerClosure(weak_ptr_factory_.GetWeakPtr() 是一个任务对象，包含 setTimeout 的回调函数，delay 表示延迟时间。
+找到任务运行器 web_task_runner_ 后，从 StartOneShot 一路追下去，最终在 [TimerBase::SetNextFireTime](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/platform/timer.cc#106)，调用 web_task_runner_->PostDelayedTask 提交了一次延迟任务，PostDelayedTask 第 2 个参数 BindTimerClosure(weak_ptr_factory_.GetWeakPtr() 的结果是一个任务对象，包含 setTimeout 的回调函数，最后一个参数 delay 表示延迟时间。
 
 ```C++
 void TimerBase::SetNextFireTime(base::TimeTicks now, base::TimeDelta delay) {
@@ -194,8 +197,8 @@ void TimerBase::SetNextFireTime(base::TimeTicks now, base::TimeDelta delay) {
 本小节总结：
 
 - 通过 setTimeout 的参数，生成定时器对象 DOMTimer，并将新生成的 DOMTimer 插入哈希表 timers_ 中
-- 通过 setTimeout 的延迟时间，找到合适的任务运行器，存入 web_task_runner_
-- 通过 DOMTimer 对象，生成 task，最后向任务运行器 web_task_runner_，投递 task，即 web_task_runner_->PostDelayedTask
+- 通过 setTimeout 的延迟时间，找到相应的任务运行器，存入 web_task_runner_
+- 通过 DOMTimer 对象，生成 task，最后向任务运行器 web_task_runner_，提交一个 task，即 web_task_runner_->PostDelayedTask
 
 
 ### 插入延迟任务队列
@@ -612,6 +615,12 @@ DOMTimer* DOMTimerCoordinator::RemoveTimeoutByID(int timeout_id) {
 ## 全文总结
 
 ![overviewSettimeout](https://raw.githubusercontent.com/xudale/blog/master/assets/overviewSettimeout.png)
+
+## 参考文献
+
+[https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html)
+
+[Threading and Tasks in Chrome](https://chromium.googlesource.com/chromium/src/+/lkgr/docs/threading_and_tasks.md#Threads)
 
 
 
