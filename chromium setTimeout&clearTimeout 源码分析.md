@@ -354,7 +354,7 @@ setTimeout(_ => {}, 400)
 
 ### 调用操作系统的定时器函数
 
-SetNextDelayedDoWork 调用了消息泵(MessagePump)类的 [ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump.h#219)，不同的操作系统，定时唤醒线程的方法肯定是不一样的，笔者的电脑是 Mac，所以先从 Mac 开始。笔者在 Mac 下打过 log，因为没有 Windows 和 Androd，所以 Windows 和 Android 部分的操作系统相关代码，只是看过，没有真机跑过。
+SetNextDelayedDoWork 调用了消息泵(MessagePump)类的 [ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump.h#219)，不同的操作系统，定时器的方法肯定是不一样的，笔者的电脑是 Mac，所以从 Mac 开始。因为没有 Windows 和 Androd 真机，所以 Windows 和 Android 部分的定时器相关代码，只是看过，没有打过 log。
 
 #### Mac
 
@@ -374,7 +374,7 @@ void MessagePumpCFRunLoopBase::ScheduleDelayedWorkImpl(TimeDelta delta) {
 }
 ```
 
-ScheduleDelayedWork 和 ScheduleDelayedWorkImpl 的参数都是延迟时间，只是格式不一样。ScheduleDelayedWork 的参数 delayed_work_time 表示的是延迟时间的绝对数值，ScheduleDelayedWorkImpl 的参数 delta 表示的是延迟时间距离当前时间的数值。ScheduleDelayedWorkImpl 调用 Mac 操作系统的函数 CFRunLoopTimerSetNextFireDate，因为 setTimeout 的第二个参数是 100，所以 CFRunLoopTimerSetNextFireDate 的作用是在 100 ms 后，唤醒当前线程，继续消息循环。以下摘自[苹果官方文档](https://developer.apple.com/documentation/corefoundation/1542501-cfrunlooptimersetnextfiredate)：
+ScheduleDelayedWork 和 ScheduleDelayedWorkImpl 的参数都是延迟时间，只是格式不一样。ScheduleDelayedWork 的参数 delayed_work_time 表示的是延迟时间的绝对数值，ScheduleDelayedWorkImpl 的参数 delta 表示的是延迟时间距离当前时间的数值。ScheduleDelayedWorkImpl 调用 Mac 操作系统的函数 CFRunLoopTimerSetNextFireDate，因为本文示例代码 setTimeout 的第二个参数是 100，所以 CFRunLoopTimerSetNextFireDate 的作用是在 100 ms 后，唤醒当前线程，继续消息循环。以下摘自[苹果官方文档](https://developer.apple.com/documentation/corefoundation/1542501-cfrunlooptimersetnextfiredate)：
 
 ![CFRunLoopTimerSetNextFireDate](https://raw.githubusercontent.com/xudale/blog/master/assets/CFRunLoopTimerSetNextFireDate.png)
 
@@ -399,7 +399,6 @@ void MessagePumpForUI::ScheduleNativeTimer(
   if (delay_msec == 0) {
     ScheduleWork();
   } else {
-    base::debug::Alias(&delay_msec);
     // 调用 Windows 定时函数 SetTimer
     const UINT_PTR ret =
         ::SetTimer(message_window_.hwnd(), reinterpret_cast<UINT_PTR>(this),
@@ -420,7 +419,7 @@ ScheduleDelayedWork 调用 ScheduleNativeTimer，ScheduleNativeTimer 最终调�
 
 #### Android
 
-Android 操作系统调用的是 [MessagePumpForUI::ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_android.cc)，源码如下：
+Android 操作系统调用的是 [MessagePumpForUI::ScheduleDelayedWork](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/message_loop/message_pump_android.cc#334)，源码如下：
 
 ```C++
 void MessagePumpForUI::ScheduleDelayedWork(const TimeTicks& delayed_work_time) {
@@ -452,7 +451,7 @@ ScheduleDelayedWork 调用 timerfd_settime 定时器函数，因为 setTimeout �
 
 本小节总结：
 
-- 调用操作系统的定时器函数，不同的操作系统有不同的实现，比如 Windows 调用 SetTimer，Android 走 linux 的系统调用
+- 调用操作系统的定时器函数，不同操作系统有不同的实现，比如 Windows 调用 SetTimer，Android 走 linux 的系统调用
 - 如果没有其它逻辑，调用完操作系统的定时器函数后，线程会休眠，消息循环暂停
 - 源码多处都有注释：操作系统的定时器函数，实际定时粒度较粗，不保证精确
 
