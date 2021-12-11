@@ -484,6 +484,8 @@ setTimeout(_ => {}, 100)
 
 由于操作系统的定时器函数未必准确，实际的睡眠时间可能超过 100ms。
 
+![setTimeoutFlow](https://raw.githubusercontent.com/xudale/blog/master/assets/setTimeoutFlow.png)
+
 ### 唤醒线程，继续消息循环
 
 定时时间到，消息循环重启，已经过期的延时任务，会被添加到工作队列，[TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#572) 源码如下：
@@ -581,7 +583,7 @@ ThreadControllerWithMessagePumpImpl::DoWorkImpl 的逻辑是找到待执行的�
 
 本小节总结：
 
-- 面试造火箭，入职拧螺丝，前端何苦为难前端
+- 前端何苦为难前端
 
 ## clearTimeout
 
