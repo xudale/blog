@@ -121,7 +121,7 @@ DOMTimer::DOMTimer(ExecutionContext* context,
 }
 ```
 
-参数 action 是一个包含定时器到期回调函数和延迟间的对象，timeout 表示延迟时间，因为 setTimeout 是单次触发，所以 single_shot 为 true，timeout 是定时器的延迟时间。
+参数 action 是一个包含定时器到期回调函数和延迟时间的对象，timeout 表示延迟时间，因为 setTimeout 是单次触发，所以 single_shot 为 true。
 
 DOMTimer::DOMTimer 的逻辑分为两部分。首先通过定时器的延迟时间，获取任务类型 task_type。本文示例代码的延迟时间是 100，所以 task_type 是 TaskType::kJavascriptTimerDelayedLowNesting。通过 MoveToNewTaskRunner(context->GetTaskRunner(task_type)) 来获取相应的任务运行器(源码里是 TaskRunner），存在 web_task_runner_ 中。[TimerBase::MoveToNewTaskRunner](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/platform/timer.cc#81) 源码如下：
 
@@ -467,7 +467,7 @@ ScheduleDelayedWork 调用 timerfd_settime 定时器函数，因为 setTimeout �
 
 ### 线程睡眠(大约) 100 ms
 
-本小节是线程睡前和睡后的分界点，在本文的定位是承上启下。在线程睡眠的时候，我们盘点一下过去，展望一下未来。本文示例代码目前做了以下几件事：
+本小节是线程睡前和睡醒后的分界点，在本文的定位是承上启下。在线程睡眠的时候，我们盘点一下过去，展望一下未来。本文示例代码目前做了以下几件事：
 
 ```JavaScript
 setTimeout(_ => {}, 100)
@@ -570,7 +570,7 @@ ThreadControllerWithMessagePumpImpl::DoWorkImpl 的逻辑是找到待执行的�
 - 由于操作系统的定时器函数不准确，有些任务不止到期，甚至已经过期许久
 - 执行已经到期/过期的任务
 
-### 面试题：为什么 setTimeout 的延迟时间不准确
+## 面试题：为什么 setTimeout 的延迟时间不准确
 
 这是一道前端常见面试题，笔者认为有 3 个原因：
 
