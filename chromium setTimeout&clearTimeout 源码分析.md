@@ -11,7 +11,7 @@ setTimeout 函数相关的源码量巨大，涉及线程、消息循环、任务
 ```JavaScript
 setTimeout(_ => {}, 100)
 ```
-### 创建任务
+### 创建延时任务
 
 setTimeout 调用的是 Blink 的 [WindowOrWorkerGlobalScope::setTimeout](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/third_party/blink/renderer/core/frame/window_or_worker_global_scope.cc#136)，源码如下：
 
@@ -260,7 +260,7 @@ MainThreadOnly 对象有很多任务队列，本文重点关注的是延时任�
 - 每一个延时任务都会被插入延时任务队列
 
 
-### (可能)插入唤醒任务队列
+### 创建唤醒任务
 
 从上文代码继续往下看，执行 main_thread_only().delayed_incoming_queue.push 方法，延时任务被插入到延时任务队列后，接着调用了 [UpdateDelayedWakeUp](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#1124)，源码如下：
 
@@ -295,6 +295,15 @@ Optional<DelayedWakeUp> TaskQueueImpl::GetNextScheduledWakeUpImpl() {
 ```
 
 GetNextScheduledWakeUpImpl 的功能是创建一个唤醒任务，主要逻辑是读取延迟任务队列的队头，得到延迟任务队列中延迟时间最小的任务 top_task，以 top_task 的延迟时间 delayed_run_time 为参数，创建一个唤醒任务 DelayedWakeUp，并返回。
+
+唤醒任务和延时任务有些相似，最大的区别是唤醒任务只有唤醒时间，没有唤醒时应该调用的回调函数。就本文的示例代码来说，延时任务保存的是回调函数和延时时间 100ms，唤醒任务只保存延时时间 100ms，没有回调函数。
+
+本小节总结：
+
+- 创建唤醒任务
+- 唤醒任务仅有延时时间(唤醒时间)字段，前端传给 setTimeout 的回调函数依然在延时任务中
+
+### (可能)插入唤醒任务队列
 
 得到唤醒任务后，调用 [UpdateDelayedWakeUpImpl](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#1128)，源码如下：
 
@@ -455,17 +464,25 @@ ScheduleDelayedWork 调用 timerfd_settime 定时器函数，因为 setTimeout �
 - 如果没有其它逻辑，调用完操作系统的定时器函数后，线程会休眠，消息循环暂停
 - 源码多处都有注释：操作系统的定时器函数，实际定时粒度较粗，不保证精确
 
-### 线程睡眠 100 ms
+### 线程睡眠(大约) 100 ms
 
-因为示例代码：
+本小节是线程睡前和睡后的分界点，在本文的定位是承上启下。在线程睡眠的时候，我们盘点一下过去，展望一下未来。本文示例代码目前做了以下几件事：
 
 ```JavaScript
-setTimeout(_ => {
-  console.log('test')
-}, 100)
+setTimeout(_ => {}, 100)
 ```
 
-没有其它逻辑需要执行，消息循环可以睡眠 100ms，实际上由于操作系统定时器函数未必准确，实际的睡眠时间可能超过 100ms。
+- 创建了一个延时任务，将延时任务插入延时任务队列
+- 取延时任务队列的队头，创建一个唤醒任务
+- (假装刚才创建的唤醒时间为 100ms 后的唤醒任务，是距当前时间点，最近的唤醒任务)
+- 将唤醒任务，插入唤醒任务队列
+- 唤醒任务只保存延时(唤醒)时间，不保存回调函数
+- 取唤醒任务队列的队头，也就是距当前时间点最近，眼下最迫切的唤醒任务
+- 调用操作系统的定时器函数
+
+现在有延时任务队列和唤醒任务队列，因为延时任务队列包含所有延时任务的时间和回调函数，其实逻辑上可以完全忽略唤醒任务队列。在线程被唤醒时，利用延时任务队列的数据结构是优先队列的特点，循环取延时任务队列的队头，根据队头的时间判断队头任务是否到期，就可以得到所有已经到期甚至过期延时任务。
+
+由于操作系统的定时器函数未必准确，实际的睡眠时间可能超过 100ms。
 
 ### 唤醒线程，继续消息循环
 
@@ -478,7 +495,7 @@ void TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue(LazyNow* lazy_now) {
   WorkQueue::TaskPusher delayed_work_queue_task_pusher(
       main_thread_only().delayed_work_queue->CreateTaskPusher());
   // 如果仔细看了前面的代码，应该还记得
-  // delayed_incoming_queue 是前端提过多次的延时队列
+  // delayed_incoming_queue 是前面提过多次的延时队列
   // 遍历队列，将已经到期甚至过期的任务，添加至 delayed_work_queue_task_pusher
   while (!main_thread_only().delayed_incoming_queue.empty()) {
     // 获取延时任务队列的队头
@@ -491,6 +508,7 @@ void TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue(LazyNow* lazy_now) {
       main_thread_only().delayed_incoming_queue.pop();
       continue;
     }
+    // delayed_incoming_queue 是优先队列
     // 如果队头元素的延迟时间大于当前时间
     // 说明延迟任务队列中的所有任务都未到期，结束循环
     if (task->delayed_run_time > lazy_now->Now())
@@ -504,9 +522,11 @@ void TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue(LazyNow* lazy_now) {
 ```
 
 
-TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue 的逻辑是收集延迟任务队列中所有到期，甚至已经过期的任务。每一个 setTimeout 向延迟任务队列 main_thread_only().delayed_incoming_queue 中添加任务。在消息循环中，会从延迟任务队列中取任务。延迟任务队列是个优先队列，只要队头任务还没有到期，说明延迟任务中的所以任务都没有到期。
+TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue 的逻辑是收集延迟任务队列中所有到期，甚至过期的任务，放入工作队列中。最终，工作队列，包含了当前时间所有已到期并待执行的延时任务。
 
-收集完所有到期或过期的延迟任务后，执行，[ThreadControllerWithMessagePumpImpl::DoWorkImpl](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/thread_controller_with_message_pump_impl.cc#305) 源码如下：
+每一次调用 setTimeout 都会向延迟任务队列 main_thread_only().delayed_incoming_queue 中添加任务。在线程被唤醒后，会从延迟任务队列中取任务。由于延迟任务队列是个优先队列，只需循环取队头就可以，只要队头任务还没有到期，说明延迟任务中的所有任务都没有到期，if (task->delayed_run_time > lazy_now->Now()) break，循环结束。
+
+收集完所有到期和过期的延迟任务后，执行 [ThreadControllerWithMessagePumpImpl::DoWorkImpl](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/thread_controller_with_message_pump_impl.cc#305)，源码如下：
 
 ```C++
 TimeDelta ThreadControllerWithMessagePumpImpl::DoWorkImpl(
@@ -516,35 +536,29 @@ TimeDelta ThreadControllerWithMessagePumpImpl::DoWorkImpl(
         power_monitor_.IsProcessInPowerSuspendState()
             ? SequencedTaskSource::SelectTaskOption::kSkipDelayedTask
             : SequencedTaskSource::SelectTaskOption::kDefault;
-    // 选择待执行的任务，存入 task
+    // 选择待执行的任务
+    // SelectNextTask 会调用 TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue
+    // SelectNextTask 结束后，得到了待执行的任务，存入 task
     Task* task =
         main_thread_only().task_source->SelectNextTask(select_task_option);
     // 如果没有任务，退出
     if (!task)
       break;
-    work_id_provider_->IncrementWorkId();
-    // [OnTaskStarted(), OnTaskEnded()] must outscope all other tracing calls
-    // so that the "ThreadController active" trace event lives on top of all
-    // "run task" events.
-    main_thread_only().run_level_tracker.OnTaskStarted();
     {
       // 执行任务
       task_annotator_.RunTask("SequenceManager RunTask", task);
+      // 注意这段注释，说的是执行完任务后，处理所有 microtask
+      // 这两行代码引发大量关于执行顺序的面试题
       // This processes microtasks, hence all scoped operations above must end
       // after it.
       main_thread_only().task_source->DidRunTask();
     }
-    main_thread_only().run_level_tracker.OnTaskEnded();
-    // When Quit() is called we must stop running the batch because the caller
-    // expects per-task granularity.
-    if (main_thread_only().quit_pending)
-      break;
   }
 }
 
 ```
 
-ThreadControllerWithMessagePumpImpl::DoWorkImpl 的逻辑是选择本次循环待执行的任务，然后 task_annotator_.RunTask("SequenceManager RunTask", task) 执行。
+ThreadControllerWithMessagePumpImpl::DoWorkImpl 的逻辑是找到待执行的任务，存入 task，然后 task_annotator_.RunTask("SequenceManager RunTask", task) 执行任务。
 
 
 本小节总结：
@@ -552,20 +566,22 @@ ThreadControllerWithMessagePumpImpl::DoWorkImpl 的逻辑是选择本次循环�
 - 从延迟任务队列 delayed_incoming_queue 取出已经到期的任务
 - 由于操作系统定时器不精确，有些任务不止到期，甚至已经过期许久
 - 执行已经过期的任务
-- 延迟任务队列的数据结构是优先队列，非常适合定时器任务的场景
 
-### 为什么 setTimeout 不准确
+### 面试题：为什么 setTimeout 不准确
 
 这是一道前端常见面试题，笔者认为有 3 个原因：
 
-1.硬件层面上，没有绝对准确的时钟，比如把手机断网但不断电，过几个月再看，手机上的时间与真实时间差距很大。当然，这个理由有点属于抬杠。
+1.硬件层面上，没有绝对准确的时钟，比如手机/电脑断网但不断电，过几个月再看，手机/电脑上的时间都与实际时间相差较大。当然，这个理由有点属于抬杠。
 
-2.运行浏览器的操作系统，Windwos、Mac 和 Android 等，这么多年开了这么多发布会，从来没宣称过自己是实时操作系统。
+2.运行浏览器的操作系统，Windwos、Mac 和 Android 等，是 OS，但不是 RTOS(实时操作系统)。操作系统厂商不保证定时器/sleep 函数的时间一定准确。
 
-3.如果短时间内，CPU 要处理大量定时任务，即使用汇编写，必然会出现有的定时任务没有如期执行的情况
+3.如果短时间内，CPU 要处理大量定时任务，即使用汇编写，只要单个定时任务耗时足够长，必然会出现有的定时任务没有如期执行的情况。
 
-综上，笔者觉得为什么 setTimeout 不准确这个前端面试题，不适合任务一道前端面试题。setTimeout 不准确这件事浏览器没什么关系，从 Chromium 相关注释来看，Chromium 已经很努力了，无奈操作系统层面无法保证精确，和前端就更没什么关系了
+为什么 setTimeout 不准确这句话，似乎在暗示操作系统存在某个与时间相关的函数，是绝对精确的，然而并没有这样的函数。从 Chromium 源码相关注释来看，Chromium 已经很努力的在让 setTimeout 尽可能的准确。既然操作系统不保证时间准确，隔了一层浏览器，却要问前端为什么 setTimeout 不准确，前端何苦为难前端。
 
+本小节总结：
+
+- 面试造火箭，入职拧螺丝，前端何苦为难前端
 
 ## clearTimeout
 
@@ -596,7 +612,7 @@ DOMTimer::RemoveByID 调用的是 [DOMTimerCoordinator::RemoveTimeoutByID](https
 DOMTimer* DOMTimerCoordinator::RemoveTimeoutByID(int timeout_id) {
   if (timeout_id <= 0)
     return nullptr;
-  // timers_ 是本文开始提到的，存放所以定时器对象的哈希表
+  // timers_ 是本文最开始提到的，存放所以定时器对象的哈希表
   DOMTimer* removed_timer = timers_.Take(timeout_id);
   if (removed_timer)
     removed_timer->Stop();
@@ -604,15 +620,17 @@ DOMTimer* DOMTimerCoordinator::RemoveTimeoutByID(int timeout_id) {
 }
 ```
 
-本文最开始提到，有个哈希表 timers_，存放所有的定时器，本文结束的时候我们又看见了它，首尾呼应。从哈希表 timers_ 中取出 key 为 timeout_id 的定时器对象 removed_timer，removed_timer->Stop() 的作用是将定时器对象的回调函数字段置为空，定时器对象和延时任务是一一对应的，定时器对象的  delayed_task_handle_ 字段引用的延时任务。找到延时任务，并将延时任务标记为清除。标记为清除的任务，会在下一次循环中，在前文提到的 TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue 方法中，从延时任务队列中移除。
+本文最开始提到，有个哈希表 timers_，存放所有的定时器，本文结束的时候我们又看见了它，首尾呼应。DOMTimerCoordinator::RemoveTimeoutByID 的逻辑是从哈希表 timers_ 中取出 key 为 timeout_id 的定时器对象 removed_timer，removed_timer->Stop() 的作用是将定时器对象的回调函数字段置为空，定时器对象的回调函数，和延时任务的回调函数，是同一个函数。将回调函数的字段置为空，尽管延时任务还在，但从前端视角来看，任务已经取消了。
+
+定时器对象和延时任务是一一对应的，定时器对象的 delayed_task_handle_ 字段引用相应延时任务。找到延时任务，并将延时任务标记为清除。标记为清除的延时任务，会在下一次循环中，在前文提到的 TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue 方法中，从延时任务队列中移除。
 
 
 本小节总结：
 
-- 从哈希表 timers_ 找到待操作的定时器
-- 将定时器的回调函数字段置为空
-- 将定时器相关联的任务标记为清除 
-- 标记为清除的延时任务，会在下一次循环中，从延时任务队列中移除
+- 从哈希表 timers_ 找到待移除的定时器
+- 将待移除定时器的回调函数字段置为空
+- 将待移除定时器关联的延时任务标记为清除 
+- 标记为清除的延时任务，会在下一次消息循环，从延时任务队列中移除
 
 ## 全文总结
 
