@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2021-12-09T14:53:50.355Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="i_FsRrKOFQJVM71WX7Co" version="14.7.6" type="github">
+<mxfile host="app.diagrams.net" modified="2021-12-11T01:49:26.284Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36" etag="I_yKp4d2ucAun0BQF4mT" version="14.7.6" type="github">
   <diagram id="6a731a19-8d31-9384-78a2-239565b7b9f0" name="Page-1">
     <mxGraphModel dx="1353" dy="1596" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
       <root>
@@ -121,10 +121,10 @@
         <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-95" value="循环执行" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
           <mxGeometry x="600" y="650" width="100" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-98" value="暂定 700 ms 后唤醒线程" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-98" value="(暂定 700 ms 后唤醒线程)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=17;horizontal=1;fontStyle=0;fontColor=#007FFF;" vertex="1" parent="1">
           <mxGeometry x="80" y="170" width="800" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-99" value="暂定 100 ms 后唤醒线程" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=22;horizontal=1;" vertex="1" parent="1">
+        <mxCell id="jv8AAYUL_Jo1ZmJcXUMn-99" value="(暂定 100 ms 后唤醒线程)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;strokeWidth=5;perimeterSpacing=1;fontSize=17;horizontal=1;fontColor=#007FFF;" vertex="1" parent="1">
           <mxGeometry x="80" y="310" width="800" height="40" as="geometry" />
         </mxCell>
       </root>
