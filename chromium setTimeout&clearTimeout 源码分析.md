@@ -487,7 +487,7 @@ setTimeout(_ => {}, 100)
 
 ![setTimeoutFlow](https://raw.githubusercontent.com/xudale/blog/master/assets/setTimeoutFlow.png)
 
-### 唤醒线程，继续消息循环
+### 唤醒线程，执行已到期延时任务
 
 定时时间到，消息循环重启，已经到期/过期的延迟任务，会被添加到工作队列，[TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue](https://chromium.googlesource.com/chromium/src/+/refs/tags/91.0.4437.3/base/task/sequence_manager/task_queue_impl.cc#572) 源码如下：
 
